@@ -51,9 +51,11 @@ async def upload_chunk(file: UploadFile = File(...), sessionId: str = Form(...),
     chunk_name = f"audio_recording/{sessionId}_{uuid.uuid4()}_{file.filename}"
     content = await file.read()
     s3_url = upload_file_to_s3(chunk_name, content)
-    await save_chunk_metadata(sessionId, chunk_name,userId )
+     # Transcribe the chunk
+    transcript = transcribe_audio_bytes(content)
+    await save_chunk_metadata(sessionId, chunk_name,userId,transcript,s3_url)
 
-    return {"message": "Chunk uploaded", "chunk": chunk_name, "s3_url":s3_url}
+    return {"message": "Chunk uploaded", "chunk": chunk_name, "s3_url":s3_url, "transcript":transcript}
 
 
 @router.post("/upload-audio-chunk")
@@ -90,123 +92,6 @@ async def upload_audio_chunk(
         "id": str(doc_id)
     }
 
-# @router.post("/finalize-session")
-# async def finalize_session(sessionId: str = Form(...), userId:str = Form(...)):
-#     if not sessionId:
-#         raise HTTPException(400, detail="Missing sessionId")
-
-#     chunk_keys = await get_chunk_list(sessionId)
-#     if not chunk_keys:
-#         raise HTTPException(404, detail="No chunks found")
-
-#     temp_dir = tempfile.mkdtemp()
-#     local_files = []
-#     final_path = None  # <-- Fix: initialize it here
-#     print("Inside the finalize-session.....")
-
-#     try:
-#         for key in chunk_keys:
-#             local_path = os.path.join(temp_dir, key)
-#             with open(local_path, "wb") as f:
-#                 f.write(download_file_from_s3(key))
-#             local_files.append(local_path)
-
-#         final_path = os.path.join(temp_dir, f"{sessionId}_merged.wav")
-#         print(f"final_path {final_path}")
-#         merge_audio_chunks(local_files, final_path)
-
-#         transcript = transcribe_audio(final_path)
-#         speakers = diarize_audio(final_path)
-
-#         with open(final_path, "rb") as f:
-#             s3_url = upload_file_to_s3(f"final_recording/{sessionId}_merged.wav", f.read())
-
-#         doc_id = await save_final_audio(sessionId, s3_url, transcript, speakers, userId)
-
-#         return {
-#             "id": str(doc_id),
-#             "transcript": transcript,
-#             "speakers": speakers
-#         }
-
-#     finally:
-#         for file in local_files:
-#             os.remove(file)
-#         if os.path.exists(final_path):
-#             os.remove(final_path)
-
-
-# @router.post("/finalize-session")
-# async def finalize_session(sessionId: str = Form(...), userId: str = Form(...)):
-#     if not sessionId:
-#         raise HTTPException(status_code=400, detail="Missing sessionId")
-
-#     chunk_keys = await get_chunk_list(sessionId)
-#     if not chunk_keys:
-#         raise HTTPException(status_code=404, detail="No chunks found")
-
-#     temp_dir = tempfile.mkdtemp()
-#     local_files = []
-#     final_path = None
-
-#     try:
-#         for key in chunk_keys:
-#             local_filename = os.path.basename(key)  # Avoid nested paths
-#             local_path = os.path.join(temp_dir, local_filename)
-
-#             # If download_file_from_s3 is async, await it
-#             file_data = download_file_from_s3(key)
-#             with open(local_path, "wb") as f:
-#                 f.write(file_data)
-
-#             local_files.append(local_path)
-
-#         final_path = os.path.join(temp_dir, f"{sessionId}_merged.wav")
-#         merge_audio_chunks(local_files, final_path)
-
-#         # If upload_file_to_s3 is async, await it
-#         with open(final_path, "rb") as f:
-#             # s3_url = upload_file_to_s3(f"final_recording/{sessionId}_merged.wav", f.read())
-#             s3_url=""
-#             transcript =""
-#             speakers =[]
-#             sample_url = await get_salesperson_sample(userId)
-#             print(f"{sample_url["s3_url"]}")
-        
-    
-#             final_sample_url =  extract_filename_from_s3_url(f"{sample_url["s3_url"]}")
-#             print(f"urlllllll......... {final_sample_url}")
-#             sample_file = download_file_from_s3( key = final_sample_url)
-#             # print(f"samle file .... {sample_file}")
-#             # file_data = download_file_from_s3(key)
-#             ref_embedding = load_reference_embedding(sample_file)
-
-#             # print("[INFO] Running diarization...")
-#             diarization = run_diarization(final_path)
-#             # print(f"diarization... {diarization}")
-
-#             # print("[INFO] Processing segments...")
-#             results = process_segments(diarization, final_path, ref_embedding)
-#             # print(f"result {results}")
-#             # transcript = transcribe_audio(final_path)
-#             # speakers = diarize_audio(final_path)
-
-
-#         doc_id = await save_final_audio(sessionId, s3_url, transcript, speakers, userId)
-
-#         return {
-#             "id": str(doc_id),
-#             "transcript": "",
-#         }
-
-#     finally:
-#         for file in local_files:
-#             if os.path.exists(file):
-#                 os.remove(file)
-#         if final_path and os.path.exists(final_path):
-#             os.remove(final_path)
-
-
 @router.post("/finalize-session")
 async def finalize_session(sessionId: str = Form(...), userId: str = Form(...)):
     if not sessionId:
@@ -223,7 +108,8 @@ async def finalize_session(sessionId: str = Form(...), userId: str = Form(...)):
 
     try:
         # Download chunk files from S3 and save locally
-        for key in chunk_keys:
+        for item in chunk_keys:
+            key = item["chunk_name"]
             local_filename = os.path.basename(key)
             local_path = os.path.join(temp_dir, local_filename)
 
@@ -260,11 +146,11 @@ async def finalize_session(sessionId: str = Form(...), userId: str = Form(...)):
          # If upload_file_to_s3 is async, await it
         with open(final_path, "rb") as f:
          s3_url = upload_file_to_s3(f"final_recording/{sessionId}_merged.wav", f.read())
-         
+
          transcript = ""
          speakers = []
 
-         doc_id = await save_final_audio(sessionId, s3_url, transcript, speakers, userId)
+         doc_id = await save_final_audio(sessionId, s3_url, results, userId)
 
          return {
             "id": str(doc_id),

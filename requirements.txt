@@ -20,3 +20,4 @@ python-multipart
 aiofiles
 ffmpeg-python
 bcrypt
+pydantic[email]
