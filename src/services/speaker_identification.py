@@ -57,12 +57,15 @@ def compute_cosine_similarity(e1, e2) -> float:
 
 def identify_speaker(segment_embedding: np.ndarray, ref_embedding: np.ndarray, speaker: str, unknown_speakers: dict, counter: int):
     similarity = compute_cosine_similarity(ref_embedding, segment_embedding)
+    print(f"[SIMILARITY] Score with Salesperson: {similarity:.4f}")
     if similarity > 0.6:
+        print(f"[LABEL] Identified as: Salesperson")
         return "Salesperson", counter
     else:
         if speaker not in unknown_speakers:
             unknown_speakers[speaker] = f"Speaker {counter}"
             counter += 1
+            print(f"[LABEL] Identified as: { unknown_speakers[speaker]}")
         return unknown_speakers[speaker], counter
 
 
@@ -80,8 +83,11 @@ def process_segments(diarization, audio_path: str, ref_embedding: np.ndarray):
     for turn, _, speaker in diarization.itertracks(yield_label=True):
         duration = turn.end - turn.start
         if duration < 0.5:
+            segment_duration = turn.end - turn.start
+            print(f"[SKIP] Segment too short ({segment_duration:.2f}s)skipping.")
             continue
 
+        print(f"[SEGMENT] Speaker: {speaker}, Time: {turn.start:.2f}s - {turn.end:.2f}s")
         segment = audio[turn.start * 1000: turn.end * 1000]
         temp_path = f"temp_{speaker}_{turn.start:.2f}.wav"
         segment.export(temp_path, format="wav")
