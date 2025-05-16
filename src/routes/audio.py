@@ -15,7 +15,7 @@ from src.services.mongo_service import save_transcription_chunk
 from src.utils import extract_filename_from_s3_url
 
 
-from src.models.meeting_model import MeetingCreate, MeetingResponse, meeting_doc_to_response
+from src.models.meeting_model import GetMeetingsById, MeetingCreate, MeetingResponse, meeting_doc_to_response
 from src.services.mongo_service import create_meeting, get_all_meetings, get_meeting_by_id
 
 router = APIRouter()
@@ -179,8 +179,8 @@ async def create_meeting_api(meeting: MeetingCreate):
     return MeetingResponse(id=str(meeting_id), **meeting.dict())
 
 @router.get("/meetings", response_model=List[MeetingResponse])
-async def get_all_meetings_api():
-    docs = await get_all_meetings()
+async def get_all_meetings_api(userId:str):
+    docs = await get_all_meetings(userId)
     return [meeting_doc_to_response(doc) for doc in docs]
 
 @router.get("/meetings/{meeting_id}", response_model=MeetingResponse)

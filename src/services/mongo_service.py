@@ -97,6 +97,7 @@
 #     return result
 
 
+from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 from src.config import MONGO_URL, MONGO_DB_NAME
 from datetime import datetime
@@ -214,8 +215,8 @@ async def create_meeting(data: dict):
     result = await meetings_collection.insert_one(data)
     return result.inserted_id
 
-async def get_all_meetings():
-    cursor = meetings_collection.find()
+async def get_all_meetings(userId:str):
+    cursor = meetings_collection.find({"userId":userId})
     return await cursor.to_list(length=None)
 
 async def get_meeting_by_id(meeting_id: str):
