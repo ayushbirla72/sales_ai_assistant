@@ -1,8 +1,11 @@
+import os
 from llama_cpp import Llama
+
+MODEL_PATH = os.path.abspath("src/prediction_models/mistral-7b-instruct-v0.1.Q4_K_M.gguf")
 
 # Load the model
 llm = Llama(
-    model_path="../prediction_models/mistral-7b-instruct-v0.1.Q4_K_M.gguf",
+    model_path=MODEL_PATH,
     n_ctx=2048,  # context size
     n_threads=8,  # adjust for your CPU
 )

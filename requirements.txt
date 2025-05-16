@@ -21,3 +21,4 @@ aiofiles
 ffmpeg-python
 bcrypt
 pydantic[email]
+llama-cpp-python

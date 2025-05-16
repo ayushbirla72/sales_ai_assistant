@@ -3,7 +3,7 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body
 import uuid, tempfile, os
 import asyncio
 
-from services.prediction_models_service import run_instruction
+from src.services.prediction_models_service import run_instruction
 from src.services.speaker_identification import load_reference_embedding, process_segments, run_diarization
 from src.services.s3_service import upload_file_to_s3, download_file_from_s3
 from src.services.mongo_service import get_salesperson_sample, save_chunk_metadata, get_chunk_list, save_final_audio, save_suggestion
@@ -99,7 +99,7 @@ async def handle_post_processing(sessionId: str, userId: str):
         suggestions = run_instruction(instruction, f"Transcript:\n{full_transcript}")
 
         # Save suggestions
-        await save_suggestion(sessionId=sessionId, userId=userId, transcript=full_transcript, suggestions=suggestions)
+        await save_suggestion(sessionId, userId, transcript=full_transcript, suggestion=suggestions)
 
     except Exception as e:
         # Optionally log the error
