@@ -101,16 +101,20 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 from src.config import MONGO_URL, MONGO_DB_NAME
 from datetime import datetime
+from pymongo import DESCENDING
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[MONGO_DB_NAME]
 
 chunks_col = db["chunks"]
-final_col = db["final"]
-sales_col = db["sales_samples"]
-chunks_col_Transcription = db["transcription_chunks"]
+final_col = db["finalTranscriptions"]
+sales_col = db["salesSamples"]
+chunks_col_Transcription = db["transcriptionChunks"]
 users_collection = db["users"]
 meetings_collection = db["meetings"]
+prediction_collection = db["predictions"]
+suggestion_collection = db["suggestions"]
+meeting_summry_collection = db["meetingSummrys"]
 
 # Save chunk metadata
 async def save_chunk_metadata(session_id: str, chunk_name: str, userId: str, transcript: str, s3_url: str):
@@ -222,3 +226,42 @@ async def get_all_meetings(userId:str):
 async def get_meeting_by_id(meeting_id: str):
     doc = await meetings_collection.find_one({"_id": ObjectId(meeting_id)})
     return doc
+
+async def save_prediction_result(userId: str, sessionId: str, question: str, topic: str, result: str):
+    now = datetime.utcnow()
+    doc = {
+        "userId": userId,
+        "sessionId": sessionId,
+        "question": question,
+        "topic": topic,
+        "result": result,
+        "createdAt": now,
+        "updatedAt": now
+    }
+    res = await prediction_collection.insert_one(doc)
+    return res.inserted_id
+
+async def get_predictions(userId: str, sessionId: str = None):
+    now = datetime.utcnow()
+    query = {"userId": userId}
+    if sessionId:
+        query["sessionId"] = sessionId
+    cursor = prediction_collection.find(query)
+    return await cursor.to_list(length=100)
+
+async def save_suggestion(sessionId: str, userId: str, transcript: str, suggestion: str):
+    doc = {
+        "sessionId": sessionId,
+        "userId": userId,
+        "transcript": transcript,
+        "suggestion": suggestion,
+        "createdAt": datetime.utcnow()
+    }
+    result = await suggestion_collection.insert_one(doc)
+    return result.inserted_id
+
+
+async def get_suggestions_by_user_and_session(userId: str, sessionId: str):
+    query = {"userId": userId, "sessionId": sessionId}
+    cursor = suggestion_collection.find(query).sort("createdAt", DESCENDING)
+    return await cursor.to_list(length=100)

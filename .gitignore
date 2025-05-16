@@ -12,6 +12,8 @@ pip-selfcheck.json
 
 src/config.py
 
+src/prediction_models/
+
 # Environment variables
 .env
 *.env

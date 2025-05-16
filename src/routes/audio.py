@@ -1,10 +1,12 @@
 from typing import List
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body
 import uuid, tempfile, os
+import asyncio
 
+from services.prediction_models_service import run_instruction
 from src.services.speaker_identification import load_reference_embedding, process_segments, run_diarization
 from src.services.s3_service import upload_file_to_s3, download_file_from_s3
-from src.services.mongo_service import get_salesperson_sample, save_chunk_metadata, get_chunk_list, save_final_audio
+from src.services.mongo_service import get_salesperson_sample, save_chunk_metadata, get_chunk_list, save_final_audio, save_suggestion
 from src.services.audio_merge_service import merge_audio_chunks
 from src.services.whisper_service import transcribe_audio
 from src.services.diarization_service import diarize_audio
@@ -49,18 +51,60 @@ async def upload_salesperson_audio(
 
 
 @router.post("/upload-chunk")
-async def upload_chunk(file: UploadFile = File(...), sessionId: str = Form(...), userId:str= Form(...)):
+async def upload_chunk(
+    file: UploadFile = File(...),
+    sessionId: str = Form(...),
+    userId: str = Form(...)
+):
     if not sessionId or not file.filename:
-        raise HTTPException(400, detail="Missing sessionId or file")
+        raise HTTPException(status_code=400, detail="Missing sessionId or file")
 
+    # Upload chunk to S3
     chunk_name = f"audio_recording/{sessionId}_{uuid.uuid4()}_{file.filename}"
     content = await file.read()
     s3_url = upload_file_to_s3(chunk_name, content)
-     # Transcribe the chunk
-    transcript = transcribe_audio_bytes(content)
-    await save_chunk_metadata(sessionId, chunk_name,userId,transcript,s3_url)
 
-    return {"message": "Chunk uploaded", "chunk": chunk_name, "s3_url":s3_url, "transcript":transcript}
+    # Transcribe the uploaded audio chunk
+    transcript = transcribe_audio_bytes(content)
+
+    # Save the chunk metadata
+    await save_chunk_metadata(sessionId, chunk_name, userId, transcript, s3_url)
+
+    # ✅ Fire-and-forget the heavy suggestion task
+    asyncio.create_task(handle_post_processing(sessionId, userId))
+
+    # ✅ Send response immediately
+    return {
+        "message": "Chunk uploaded",
+        "chunk": chunk_name,
+        "s3_url": s3_url,
+        "transcript": transcript,
+    }
+
+
+# 🔁 This runs in background
+async def handle_post_processing(sessionId: str, userId: str):
+    try:
+        # Get all previous transcripts
+        chunk_list = await get_chunk_list(sessionId)
+        full_transcript = "\n".join(chunk["transcript"] for chunk in chunk_list if "transcript" in chunk)
+
+        # Get meeting info
+        meeting = await get_meeting_by_id(sessionId)
+        description = meeting.get("description", "")
+        product_details = meeting.get("product_details", "")
+
+        # Run LLM
+        instruction = f"Suggest improvements for this meeting segment. Meeting Description: {description}. Product Details: {product_details}."
+        suggestions = run_instruction(instruction, f"Transcript:\n{full_transcript}")
+
+        # Save suggestions
+        await save_suggestion(sessionId=sessionId, userId=userId, transcript=full_transcript, suggestions=suggestions)
+
+    except Exception as e:
+        # Optionally log the error
+        print(f"Error in background processing: {e}")
+
 
 
 @router.post("/upload-audio-chunk")
