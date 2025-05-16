@@ -1,0 +1,59 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+env/
+venv/
+ENV/
+.venv/
+pip-selfcheck.json
+
+src/config.py
+
+# Environment variables
+.env
+*.env
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# PyInstaller
+*.spec
+
+# VSCode and other IDEs
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# MyPy and Pyright
+.mypy_cache/
+.pyright/
+
+# Logs
+*.log
+
+# Tests
+.coverage
+htmlcov/
+.tox/
+nosetests.xml
+coverage.xml
+
+# MacOS and system files
+.DS_Store
+Thumbs.db
+
+# Database or local file storage
+*.sqlite3
+*.db
+*.bak
+*.dump

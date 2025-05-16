@@ -1,0 +1,22 @@
+sympy==1.12
+torch
+torchaudio
+pyannote.audio
+git+https://github.com/speechbrain/speechbrain.git@develop
+# whisper-timestamped
+pydub
+scipy
+transformers
+python-dotenv
+
+fastapi
+uvicorn[standard]
+boto3
+motor
+pydub
+# pyannote.audio
+faster-whisper
+python-multipart
+aiofiles
+ffmpeg-python
+bcrypt
