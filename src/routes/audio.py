@@ -1,4 +1,5 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from typing import List
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body
 import uuid, tempfile, os
 
 from src.services.speaker_identification import load_reference_embedding, process_segments, run_diarization
@@ -12,6 +13,10 @@ from src.services.mongo_service import save_salesperson_sample
 from src.services.transcription_service import transcribe_audio_bytes
 from src.services.mongo_service import save_transcription_chunk
 from src.utils import extract_filename_from_s3_url
+
+
+from src.models.meeting_model import MeetingCreate, MeetingResponse, meeting_doc_to_response
+from src.services.mongo_service import create_meeting, get_all_meetings, get_meeting_by_id
 
 router = APIRouter()
 
@@ -166,3 +171,21 @@ async def finalize_session(sessionId: str = Form(...), userId: str = Form(...)):
             os.remove(final_path)
         if sample_path and os.path.exists(sample_path):
             os.remove(sample_path)
+
+
+@router.post("/meetings", response_model=MeetingResponse)
+async def create_meeting_api(meeting: MeetingCreate):
+    meeting_id = await create_meeting(meeting.dict())
+    return MeetingResponse(id=str(meeting_id), **meeting.dict())
+
+@router.get("/meetings", response_model=List[MeetingResponse])
+async def get_all_meetings_api():
+    docs = await get_all_meetings()
+    return [meeting_doc_to_response(doc) for doc in docs]
+
+@router.get("/meetings/{meeting_id}", response_model=MeetingResponse)
+async def get_meeting_by_id_api(meeting_id: str):
+    doc = await get_meeting_by_id(meeting_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    return meeting_doc_to_response(doc)

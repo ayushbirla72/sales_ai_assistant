@@ -109,6 +109,7 @@ final_col = db["final"]
 sales_col = db["sales_samples"]
 chunks_col_Transcription = db["transcription_chunks"]
 users_collection = db["users"]
+meetings_collection = db["meetings"]
 
 # Save chunk metadata
 async def save_chunk_metadata(session_id: str, chunk_name: str, userId: str, transcript: str, s3_url: str):
@@ -207,3 +208,16 @@ async def get_user_details(data: object):
     result = await users_collection.find_one({"email": data["email"]})
     print(f"data.. {result}")
     return result
+
+
+async def create_meeting(data: dict):
+    result = await meetings_collection.insert_one(data)
+    return result.inserted_id
+
+async def get_all_meetings():
+    cursor = meetings_collection.find()
+    return await cursor.to_list(length=None)
+
+async def get_meeting_by_id(meeting_id: str):
+    doc = await meetings_collection.find_one({"_id": ObjectId(meeting_id)})
+    return doc
