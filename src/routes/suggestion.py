@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body
 from typing import List
 from bson import ObjectId
 from src.services.mongo_service import save_suggestion, get_suggestions_by_user_and_session
@@ -17,6 +17,7 @@ async def create_suggestion(
 
 
 @router.get("/suggestions", response_model=List[dict])
-async def get_suggestions(sessionId: str, userId: str):
+async def get_suggestions( sessionId: str = Form(...),
+    userId: str = Form(...)):
     suggestions = await get_suggestions_by_user_and_session(userId, sessionId)
     return suggestions

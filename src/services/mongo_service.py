@@ -263,5 +263,6 @@ async def save_suggestion(sessionId: str, userId: str, transcript: str, suggesti
 
 async def get_suggestions_by_user_and_session(userId: str, sessionId: str):
     query = {"userId": userId, "sessionId": sessionId}
+    print(f"dddd {query}")
     cursor = suggestion_collection.find(query).sort("createdAt", DESCENDING)
     return await cursor.to_list(length=100)
