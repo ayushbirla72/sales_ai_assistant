@@ -242,7 +242,7 @@ async def save_prediction_result(userId: str, sessionId: str, question: str, top
     res = await prediction_collection.insert_one(doc)
     return res.inserted_id
 
-async def get_predictions(userId: str, sessionId: str = None):
+async def   get_predictions(userId: str, sessionId: str = None):
     now = datetime.utcnow()
     query = {"userId": userId}
     if sessionId:
