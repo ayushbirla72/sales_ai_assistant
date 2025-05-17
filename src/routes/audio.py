@@ -2,11 +2,13 @@ from typing import List
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body
 import uuid, tempfile, os
 import asyncio
+import json
+from collections import defaultdict
 
 from src.services.prediction_models_service import run_instruction
 from src.services.speaker_identification import load_reference_embedding, process_segments, run_diarization
 from src.services.s3_service import upload_file_to_s3, download_file_from_s3
-from src.services.mongo_service import get_salesperson_sample, save_chunk_metadata, get_chunk_list, save_final_audio, save_suggestion
+from src.services.mongo_service import get_salesperson_sample, save_chunk_metadata, get_chunk_list, save_final_audio, save_suggestion, update_final_summary_and_suggestion
 from src.services.audio_merge_service import merge_audio_chunks
 from src.services.whisper_service import transcribe_audio
 from src.services.diarization_service import diarize_audio
@@ -201,6 +203,9 @@ async def finalize_session(sessionId: str = Form(...), userId: str = Form(...)):
 
          doc_id = await save_final_audio(sessionId, s3_url, results, userId)
 
+           # ✅ Run summarization in background
+         asyncio.create_task(handle_finalize_post_processing(sessionId, userId, results))
+
          return {
             "id": str(doc_id),
             "transcript": "",
@@ -215,6 +220,53 @@ async def finalize_session(sessionId: str = Form(...), userId: str = Form(...)):
             os.remove(final_path)
         if sample_path and os.path.exists(sample_path):
             os.remove(sample_path)
+
+
+async def handle_finalize_post_processing(sessionId: str, userId: str, transcript: str):
+    try:
+        # Get meeting metadata
+        meeting = await get_meeting_by_id(sessionId)
+        description = meeting.get("description", "")
+        product_details = meeting.get("product_details", "")
+
+        # --- Step 1: Parse Transcript ---
+        try:
+            transcript_data = transcript if isinstance(transcript, list) else json.loads(transcript)
+        except Exception as parse_err:
+            raise ValueError(f"Failed to parse transcript: {parse_err}")
+
+        # --- Step 2: Group transcript by original speaker labels in order ---
+        formatted_transcript = ""
+        for entry in transcript_data:
+            speaker = entry.get("speaker", "Unknown")
+            text = entry.get("text", "").strip()
+            if text:
+                formatted_transcript += f"{speaker}: {text}\n"
+
+        # --- Step 3: Prepare LLM Instructions ---
+        summary_instruction = (
+            f"Summarize the following meeting in a concise paragraph.\n"
+            f"Meeting Description: {description}\n"
+            f"Product Details: {product_details}"
+        )
+
+        suggestion_instruction = (
+            f"Suggest improvements based on the following meeting.\n"
+            f"Meeting Description: {description}\n"
+            f"Product Details: {product_details}"
+        )
+
+        # --- Step 4: Call LLM ---
+        summary = run_instruction(summary_instruction, f"Transcript:\n{formatted_transcript}")
+        suggestion = run_instruction(suggestion_instruction, f"Transcript:\n{formatted_transcript}")
+
+        print(f"📄 Summary:\n{summary}\n\n💡 Suggestions:\n{suggestion}")
+
+        # --- Step 5: Save to DB ---
+        await update_final_summary_and_suggestion(sessionId, userId, summary, suggestion)
+
+    except Exception as e:
+        print(f"❌ Error in finalize post-processing: {e}")
 
 
 @router.post("/meetings", response_model=MeetingResponse)

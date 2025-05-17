@@ -97,6 +97,7 @@
 #     return result
 
 
+from typing import Optional
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 from src.config import MONGO_URL, MONGO_DB_NAME
@@ -261,8 +262,36 @@ async def save_suggestion(sessionId: str, userId: str, transcript: str, suggesti
     return result.inserted_id
 
 
+
+def serialize_suggestion(suggestion: dict) -> dict:
+    suggestion["_id"] = str(suggestion["_id"])  # Convert ObjectId to string
+    return suggestion
+
 async def get_suggestions_by_user_and_session(userId: str, sessionId: str):
     query = {"userId": userId, "sessionId": sessionId}
-    print(f"dddd {query}")
-    cursor = suggestion_collection.find(query).sort("createdAt", DESCENDING)
-    return await cursor.to_list(length=100)
+    cursor = suggestion_collection.find(query)
+    results = await cursor.to_list(length=None)
+    return [serialize_suggestion(s) for s in results]
+
+
+
+async def update_final_summary_and_suggestion(sessionId: str, userId: str, summary: str, suggestion:str):
+    now = datetime.utcnow()
+    doc = {
+        "userId": userId,
+        "sessionId": sessionId,
+        "summary": summary,
+        "suggestion":suggestion,
+        "createdAt": now,
+        "updatedAt": now
+    }
+    await meeting_summry_collection.insert_one(
+    doc
+    )
+
+
+async def get_summary_and_suggestion(sessionId: str, userId: Optional[str] = None):
+    query = {"sessionId": sessionId}
+    if userId:
+        query["userId"] = userId
+    return await meeting_summry_collection.find_one(query)
