@@ -144,7 +144,7 @@ async def upload_audio_chunk(
     }
 
 @router.post("/finalize-session")
-async def finalize_session(sessionId: str = Form(...), userId: str = Form(...)):
+async def finalize_session(sessionId: str = Body(...), userId: str = Body(...)):
     if not sessionId:
         raise HTTPException(status_code=400, detail="Missing sessionId")
 
