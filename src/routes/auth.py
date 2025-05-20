@@ -49,18 +49,18 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
         payload = jwt.decode(token, os.getenv("JWT_SECRET", "default_secret"), algorithms=["HS256"])
         email = payload.get("email")
         if email is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload.")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, message="Invalid token payload.")
         return email
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, message="Token has expired.")
     except jwt.JWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, message="Invalid token.")
 
 @router.post("/signup")
 async def signup(data: SignupRequest):
     existing_user = await get_user_details({"email": data.email})
     if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered.")
+        raise HTTPException(status_code=400, message="Email already registered.")
     
     print(f"loggggggg... {data}")
 
@@ -76,6 +76,7 @@ async def signup(data: SignupRequest):
     }
     secret = os.getenv("JWT_SECRET", "default_secret")
     token = jwt.encode(payload, secret, algorithm="HS256")
+    print(f"tokennnn.... {token}")
 
     return {"message": "Signup successful.", "userId": f"{user["_id"]}", "token": token}
 
@@ -85,7 +86,7 @@ async def login(data: LoginRequest):
     print(f"emilllll  {data}")
     user = await get_user_details({"email": data.email})
     if not user or not verify_password(data.password, user["password"]):
-        raise HTTPException(status_code=401, detail="Invalid email or password.")
+        raise HTTPException(status_code=401, message="Invalid email or password.")
     print(f"data  {user["_id"]}")
 
     # Generate JWT token
@@ -103,19 +104,19 @@ async def login(data: LoginRequest):
 async def change_password(data: ChangePasswordRequest, email: str = Depends(verify_token)):
     user = await get_user_details({"email": data.email})
     if not user or not verify_password(data.old_password, user["password"]):
-        raise HTTPException(status_code=401, detail="Invalid email or old password.")
+        raise HTTPException(status_code=401, message="Invalid email or old password.")
     new_hashed_pw = hash_password(data.new_password)
     updated = await update_user_password(data.email, new_hashed_pw)
     if updated:
         return {"message": "Password changed successfully."}
     else:
-        raise HTTPException(status_code=500, detail="Failed to update password.")
+        raise HTTPException(status_code=500, message="Failed to update password.")
 
 @router.post("/profile")
 async def get_profile(data: GetProfileRequest, email: str = Depends(verify_token)):
     user = await get_user_details({"email": data.email})
     if not user:
-        raise HTTPException(status_code=404, detail="User not found.")
+        raise HTTPException(status_code=404, message="User not found.")
     # Remove password from the response
     user.pop("password", None)
     return user
@@ -124,7 +125,7 @@ async def get_profile(data: GetProfileRequest, email: str = Depends(verify_token
 async def update_profile(data: UpdateProfileRequest, email: str = Depends(verify_token)):
     user = await get_user_details({"email": data.email})
     if not user:
-        raise HTTPException(status_code=404, detail="User not found.")
+        raise HTTPException(status_code=404, message="User not found.")
     
     # Update user profile
     now = datetime.utcnow()
@@ -142,4 +143,4 @@ async def update_profile(data: UpdateProfileRequest, email: str = Depends(verify
     if result.modified_count:
         return {"message": "Profile updated successfully."}
     else:
-        raise HTTPException(status_code=500, detail="Failed to update profile.")
+        raise HTTPException(status_code=500, message="Failed to update profile.")

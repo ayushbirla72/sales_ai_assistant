@@ -33,7 +33,7 @@ async def upload_salesperson_audio(
 ):
     print(f"dattttttttttttttt............ {userId}")
     if not userId or not file.filename:
-        raise HTTPException(400, detail="Missing userId or file")
+        raise HTTPException(400, message="Missing userId or file")
 
     content = await file.read()
     s3_key = f"salesperson_samples_audio/{userId}_{file.filename}"
@@ -59,7 +59,7 @@ async def upload_chunk(
     userId: str = Form(...)
 ):
     if not sessionId or not file.filename:
-        raise HTTPException(status_code=400, detail="Missing sessionId or file")
+        raise HTTPException(status_code=400, message="Missing sessionId or file")
 
     # Upload chunk to S3
     chunk_name = f"audio_recording/{sessionId}_{uuid.uuid4()}_{file.filename}"
@@ -118,7 +118,7 @@ async def upload_audio_chunk(
     print("hello")
     print(f"file {file}")
     if not file or not sessionId or not userId:
-        raise HTTPException(400, detail="Missing file or sessionId or userId")
+        raise HTTPException(400, message="Missing file or sessionId or userId")
 
     # Read file content
     print(f"file {file}")
@@ -146,11 +146,11 @@ async def upload_audio_chunk(
 @router.post("/finalize-session")
 async def finalize_session(sessionId: str = Body(...), userId: str = Body(...)):
     if not sessionId:
-        raise HTTPException(status_code=400, detail="Missing sessionId")
+        raise HTTPException(status_code=400, message="Missing sessionId")
 
     chunk_keys = await get_chunk_list(sessionId)
     if not chunk_keys:
-        raise HTTPException(status_code=404, detail="No chunks found")
+        raise HTTPException(status_code=404, message="No chunks found")
 
     temp_dir = tempfile.mkdtemp()
     local_files = []
@@ -283,5 +283,5 @@ async def get_all_meetings_api(userId:str):
 async def get_meeting_by_id_api(meeting_id: str):
     doc = await get_meeting_by_id(meeting_id)
     if not doc:
-        raise HTTPException(status_code=404, detail="Meeting not found")
+        raise HTTPException(status_code=404, message="Meeting not found")
     return meeting_doc_to_response(doc)
