@@ -78,7 +78,7 @@ async def signup(data: SignupRequest):
     token = jwt.encode(payload, secret, algorithm="HS256")
     print(f"tokennnn.... {token}")
 
-    return {"message": "Signup successful.", "userId": f"{user["_id"]}", "token": token}
+    return {"message": "Signup successful.", "userId": f"{user["_id"]}", "access_token": token}
 
 
 @router.post("/login")
@@ -98,7 +98,7 @@ async def login(data: LoginRequest):
     secret = os.getenv("JWT_SECRET", "default_secret")
     token = jwt.encode(payload, secret, algorithm="HS256")
 
-    return {"message": "Login successful.", "userId": f"{user["_id"]}", "token": token}
+    return {"message": "Login successful.", "userId": f"{user["_id"]}", "access_token": token}
 
 @router.post("/change-password")
 async def change_password(data: ChangePasswordRequest, email: str = Depends(verify_token)):
