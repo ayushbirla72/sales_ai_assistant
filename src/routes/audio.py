@@ -287,6 +287,7 @@ async def create_meeting_api(
     token_data: dict = Depends(verify_token)
 ):
     userId = token_data["user_id"]
+    meeting.userId = userId
     meeting_id = await create_meeting(meeting.dict())
     return MeetingResponse(id=str(meeting_id), **meeting.dict())
 

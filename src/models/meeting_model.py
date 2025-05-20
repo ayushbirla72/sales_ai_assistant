@@ -3,6 +3,7 @@ from typing import List, Optional
 from bson import ObjectId
 
 class MeetingCreate(BaseModel):
+    userId:str
     title: str
     description: Optional[str] = None
     topics: List[str]
