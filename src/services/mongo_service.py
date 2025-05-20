@@ -110,6 +110,7 @@ async def save_user_details(data: object):
     }
     result = await users_collection.insert_one(doc)
     inserted_user = await users_collection.find_one({"_id":result.inserted_id})
+    inserted_user["password"] = None
     return inserted_user
 
 # Get user details

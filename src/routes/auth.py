@@ -90,7 +90,7 @@ async def signup(data: SignupRequest):
     user = await save_user_details({"name": data.name, "email": data.email, "password": hashed_pw})
 
     payload = {
-        "user_id": str(user),
+        "user_id": str(user["_id"]),
         "email": data.email,
         "exp": datetime.utcnow() + timedelta(hours=24)
     }
