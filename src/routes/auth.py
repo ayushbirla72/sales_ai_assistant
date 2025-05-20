@@ -46,16 +46,35 @@ security = HTTPBearer()
 async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
         token = credentials.credentials
-        payload = jwt.decode(token, os.getenv("JWT_SECRET", "default_secret"), algorithms=["HS256"])
+        payload = jwt.decode(
+            token, 
+            os.getenv("JWT_SECRET", "default_secret"), 
+            algorithms=["HS256"],
+            options={"verify_exp": True}
+        )
         email = payload.get("email")
         user_id = payload.get("user_id")
         if email is None or user_id is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload.")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, 
+                detail="Invalid token payload."
+            )
         return {"email": email, "user_id": user_id}
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired.")
-    except jwt.PyJWKError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="Token has expired."
+        )
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="Invalid token."
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail=f"Token verification failed: {str(e)}"
+        )
 
 @router.post("/signup")
 async def signup(data: SignupRequest):
