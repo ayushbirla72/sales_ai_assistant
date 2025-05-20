@@ -54,7 +54,7 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
         return {"email": email, "user_id": user_id}
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired.")
-    except jwt.JWTError:
+    except jwt.PyJWKError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token.")
 
 @router.post("/signup")
