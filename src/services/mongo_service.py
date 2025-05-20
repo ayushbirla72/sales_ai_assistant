@@ -120,6 +120,9 @@ async def get_user_details(data: object):
 
 
 async def create_meeting(data: dict):
+    print(f"dataaaaaaa  {data}")
+    data["createdAt"] = datetime.utcnow()
+    data["updatedAt"] = datetime.utcnow()
     result = await meetings_collection.insert_one(data)
     return result.inserted_id
 
