@@ -109,7 +109,8 @@ async def save_user_details(data: object):
         "updatedAt": now
     }
     result = await users_collection.insert_one(doc)
-    return result.inserted_id
+    inserted_user = await users_collection.find_one({"_id":result.inserted_id})
+    return inserted_user
 
 # Get user details
 async def get_user_details(data: object):

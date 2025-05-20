@@ -67,8 +67,18 @@ async def signup(data: SignupRequest):
     hashed_pw = hash_password(data.password)
 
     print(f"hass pasword {hashed_pw}")
-    await save_user_details({"name": data.name, "email": data.email, "password": hashed_pw})
-    return {"message": "Signup successful."}
+    user = await save_user_details({"name": data.name, "email": data.email, "password": hashed_pw})
+
+    payload = {
+        "user_id": str(user["_id"]),
+        "email": user["email"],
+        "exp": datetime.utcnow() + timedelta(hours=24)
+    }
+    secret = os.getenv("JWT_SECRET", "default_secret")
+    token = jwt.encode(payload, secret, algorithm="HS256")
+
+    return {"message": "Signup successful.", "userId": f"{user["_id"]}", "token": token}
+
 
 @router.post("/login")
 async def login(data: LoginRequest):
