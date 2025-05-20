@@ -3,11 +3,10 @@ from typing import List, Optional
 from bson import ObjectId
 
 class MeetingCreate(BaseModel):
-    userId:str
     title: str
     description: Optional[str] = None
     topics: List[str]
-    persons: List[str]
+    participants: int
     product_details: Optional[str] = None
 
 class MeetingResponse(MeetingCreate):

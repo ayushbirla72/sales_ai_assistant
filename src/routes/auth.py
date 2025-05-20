@@ -48,9 +48,10 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
         token = credentials.credentials
         payload = jwt.decode(token, os.getenv("JWT_SECRET", "default_secret"), algorithms=["HS256"])
         email = payload.get("email")
-        if email is None:
+        user_id = payload.get("user_id")
+        if email is None or user_id is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload.")
-        return email
+        return {"email": email, "user_id": user_id}
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired.")
     except jwt.JWTError:
@@ -70,15 +71,15 @@ async def signup(data: SignupRequest):
     user = await save_user_details({"name": data.name, "email": data.email, "password": hashed_pw})
 
     payload = {
-        "user_id": str(user["_id"]),
-        "email": user["email"],
+        "user_id": str(user),
+        "email": data.email,
         "exp": datetime.utcnow() + timedelta(hours=24)
     }
     secret = os.getenv("JWT_SECRET", "default_secret")
     token = jwt.encode(payload, secret, algorithm="HS256")
     print(f"tokennnn.... {token}")
 
-    return {"message": "Signup successful.", "userId": f"{user["_id"]}", "access_token": token}
+    return {"message": "Signup successful.", "userId": str(user), "access_token": token}
 
 
 @router.post("/login")

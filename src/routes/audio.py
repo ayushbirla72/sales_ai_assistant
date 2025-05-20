@@ -1,5 +1,5 @@
 from typing import List
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body, Depends
 import uuid, tempfile, os
 import asyncio
 import json
@@ -21,6 +21,7 @@ from src.utils import extract_filename_from_s3_url
 
 from src.models.meeting_model import GetMeetingsById, MeetingCreate, MeetingResponse, meeting_doc_to_response
 from src.services.mongo_service import create_meeting, get_all_meetings, get_meeting_by_id
+from src.routes.auth import verify_token
 
 router = APIRouter()
 
@@ -29,8 +30,10 @@ router = APIRouter()
 @router.post("/upload-salesperson-audio")
 async def upload_salesperson_audio(
     file: UploadFile = File(...),
-    userId:str = Form(...)
+    # userId:str = Form(...),
+    token_data: dict = Depends(verify_token)
 ):
+    userId = token_data["user_id"]
     print(f"dattttttttttttttt............ {userId}")
     if not userId or not file.filename:
         raise HTTPException(400, detail="Missing userId or file")
@@ -56,8 +59,10 @@ async def upload_salesperson_audio(
 async def upload_chunk(
     file: UploadFile = File(...),
     sessionId: str = Form(...),
-    userId: str = Form(...)
+    # userId: str = Form(...),
+    token_data: dict = Depends(verify_token)
 ):
+    userId = token_data["user_id"]
     if not sessionId or not file.filename:
         raise HTTPException(status_code=400, detail="Missing sessionId or file")
 
@@ -113,8 +118,10 @@ async def handle_post_processing(sessionId: str, userId: str):
 async def upload_audio_chunk(
     file: UploadFile = File(...),
     sessionId: str = Form(...),
-    userId:str = Form(...)
+   
+    token_data: dict = Depends(verify_token)
 ):
+    userId = token_data["user_id"]
     print("hello")
     print(f"file {file}")
     if not file or not sessionId or not userId:
@@ -144,7 +151,12 @@ async def upload_audio_chunk(
     }
 
 @router.post("/finalize-session")
-async def finalize_session(sessionId: str = Body(...), userId: str = Body(...)):
+async def finalize_session(
+    sessionId: str = Body(...), 
+    # userId: str = Body(...),
+    token_data: dict = Depends(verify_token)
+):
+    userId = token_data["user_id"]
     if not sessionId:
         raise HTTPException(status_code=400, detail="Missing sessionId")
 
@@ -270,18 +282,34 @@ async def handle_finalize_post_processing(sessionId: str, userId: str, transcrip
 
 
 @router.post("/meetings", response_model=MeetingResponse)
-async def create_meeting_api(meeting: MeetingCreate):
+async def create_meeting_api(
+    meeting: MeetingCreate,
+    token_data: dict = Depends(verify_token)
+):
+    userId = token_data["user_id"]
     meeting_id = await create_meeting(meeting.dict())
     return MeetingResponse(id=str(meeting_id), **meeting.dict())
 
 @router.get("/meetings", response_model=List[MeetingResponse])
-async def get_all_meetings_api(userId:str):
+async def get_all_meetings_api(
+    userId:str,
+    token_data: dict = Depends(verify_token)
+):
     docs = await get_all_meetings(userId)
     return [meeting_doc_to_response(doc) for doc in docs]
 
 @router.get("/meetings/{meeting_id}", response_model=MeetingResponse)
-async def get_meeting_by_id_api(meeting_id: str):
+async def get_meeting_by_id_api(
+    meeting_id: str,
+    token_data: dict = Depends(verify_token)
+):
     doc = await get_meeting_by_id(meeting_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Meeting not found")
     return meeting_doc_to_response(doc)
+
+@router.post("/some-endpoint")
+async def some_endpoint(token_data: dict = Depends(verify_token)):
+    email = token_data["email"]
+    user_id = token_data["user_id"]
+    # ... rest of your code
