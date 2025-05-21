@@ -9,6 +9,7 @@ class MeetingCreate(BaseModel):
     topics: List[str]
     participants: int
     product_details: Optional[str] = None
+    scheduled_time: Optional[str] = None
 
 class MeetingResponse(MeetingCreate):
     id: str
@@ -26,5 +27,6 @@ def meeting_doc_to_response(doc):
         description=doc.get("description"),
         topics=doc.get("topics", []),
         persons=doc.get("persons", []),
-        product_details=doc.get("product_details")
+        product_details=doc.get("product_details"),
+        scheduled_time=doc.get("scheduled_time")
     )

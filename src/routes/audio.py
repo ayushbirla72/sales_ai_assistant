@@ -310,6 +310,7 @@ async def get_meeting_by_id_api(
         raise HTTPException(status_code=404, detail="Meeting not found")
     return meeting_doc_to_response(doc)
 
+
 @router.post("/some-endpoint")
 async def some_endpoint(token_data: dict = Depends(verify_token)):
     email = token_data["email"]
