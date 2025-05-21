@@ -11,6 +11,7 @@ ENV/
 pip-selfcheck.json
 
 src/config.py
+src/credentials.json
 
 src/prediction_models/
 

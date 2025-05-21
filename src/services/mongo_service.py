@@ -17,6 +17,7 @@ meetings_collection = db["meetings"]
 prediction_collection = db["predictions"]
 suggestion_collection = db["suggestions"]
 meeting_summry_collection = db["meetingSummrys"]
+calendar_events_collection = db["calendar_events"]
 
 # Save chunk metadata
 async def save_chunk_metadata(session_id: str, chunk_name: str, userId: str, transcript: str, s3_url: str):
@@ -210,3 +211,38 @@ async def update_user_password(email: str, new_hashed_password: str):
         {"$set": {"password": new_hashed_password, "updatedAt": now}}
     )
     return result.modified_count
+
+async def save_calendar_event(event_data: dict):
+    """Save a calendar event to the database."""
+    now = datetime.utcnow()
+    event_data["created_at"] = now
+    event_data["updated_at"] = now
+    result = await calendar_events_collection.insert_one(event_data)
+    return result.inserted_id
+
+async def get_calendar_events(user_id: str, start_date: datetime = None, end_date: datetime = None):
+    """Get calendar events for a user within a date range."""
+    query = {"user_id": user_id}
+    if start_date and end_date:
+        query["start_time"] = {"$gte": start_date, "$lte": end_date}
+    
+    cursor = calendar_events_collection.find(query).sort("start_time", 1)
+    return await cursor.to_list(length=None)
+
+async def get_calendar_event_by_id(event_id: str):
+    """Get a specific calendar event by ID."""
+    return await calendar_events_collection.find_one({"event_id": event_id})
+
+async def update_calendar_event(event_id: str, update_data: dict):
+    """Update a calendar event."""
+    update_data["updated_at"] = datetime.utcnow()
+    result = await calendar_events_collection.update_one(
+        {"event_id": event_id},
+        {"$set": update_data}
+    )
+    return result.modified_count
+
+async def delete_calendar_event(event_id: str):
+    """Delete a calendar event."""
+    result = await calendar_events_collection.delete_one({"event_id": event_id})
+    return result.deleted_count
