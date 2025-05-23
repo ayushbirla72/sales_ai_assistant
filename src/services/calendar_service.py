@@ -1,76 +1,77 @@
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-import os
-import pickle
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
+import os
 
-# If modifying these scopes, delete the file token.pickle.
-SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
+SCOPES = [
+    'https://www.googleapis.com/auth/calendar.readonly',
+    'https://www.googleapis.com/auth/calendar.events.readonly',
+    'https://www.googleapis.com/auth/calendar.events'
+]
 
 class GoogleCalendarService:
     def __init__(self):
-        self.creds = None
         self.service = None
 
-    def authenticate(self):
-        """Handles authentication with Google Calendar API."""
-        if os.path.exists('token.pickle'):
-            with open('token.pickle', 'rb') as token:
-                self.creds = pickle.load(token)
+    def authenticate_with_access_token(self, access_token: str):
+        """Authenticate with Google Calendar using a valid OAuth access token (not an ID token)."""
+        try:
+            print("Authenticating with access token...")
 
-        if not self.creds or not self.creds.valid:
-            if self.creds and self.creds.expired and self.creds.refresh_token:
-                self.creds.refresh(Request())
-            else:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    'credentials.json', SCOPES)
-                self.creds = flow.run_local_server(port=0)
-            
-            with open('token.pickle', 'wb') as token:
-                pickle.dump(self.creds, token)
+            credentials = Credentials(
+                token=access_token,
+                scopes=SCOPES
+            )
 
-        self.service = build('calendar', 'v3', credentials=self.creds)
+            self.service = build('calendar', 'v3', credentials=credentials)
+            print("Google Calendar service initialized.")
+        except Exception as e:
+            raise ValueError(f"Failed to authenticate: {str(e)}")
 
-    def get_calendar_events(self, max_results: int = 10) -> List[Dict[str, Any]]:
-        """Fetches calendar events for the next 7 days."""
-        if not self.service:
-            self.authenticate()
+    def get_calendar_events(self, access_token: str, max_results: int = 10) -> List[Dict[str, Any]]:
+        try:
+            self.authenticate_with_access_token(access_token)
 
-        now = datetime.utcnow().isoformat() + 'Z'  # 'Z' indicates UTC time
-        one_week_later = (datetime.utcnow() + timedelta(days=7)).isoformat() + 'Z'
+            now = datetime.utcnow().isoformat() + 'Z'
+            one_week_later = (datetime.utcnow() + timedelta(days=7)).isoformat() + 'Z'
 
-        events_result = self.service.events().list(
-            calendarId='primary',
-            timeMin=now,
-            timeMax=one_week_later,
-            maxResults=max_results,
-            singleEvents=True,
-            orderBy='startTime'
-        ).execute()
+            print(f"Fetching events from {now} to {one_week_later}...")
 
-        events = events_result.get('items', [])
-        
-        formatted_events = []
-        for event in events:
-            start = event['start'].get('dateTime', event['start'].get('date'))
-            end = event['end'].get('dateTime', event['end'].get('date'))
-            
-            formatted_event = {
-                'event_id': event['id'],
-                'summary': event.get('summary', 'No Title'),
-                'description': event.get('description', ''),
-                'start_time': start,
-                'end_time': end,
-                'location': event.get('location', ''),
-                'attendees': [attendee['email'] for attendee in event.get('attendees', [])],
-                'created_at': event.get('created'),
-                'updated_at': event.get('updated')
-            }
-            formatted_events.append(formatted_event)
+            events_result = self.service.events().list(
+                calendarId='primary',
+                timeMin=now,
+                timeMax=one_week_later,
+                maxResults=max_results,
+                singleEvents=True,
+                orderBy='startTime'
+            ).execute()
 
-        return formatted_events
+            events = events_result.get('items', [])
+            print(f"Fetched {len(events)} event(s).")
+
+            formatted_events = []
+            for event in events:
+                start = event['start'].get('dateTime', event['start'].get('date'))
+                end = event['end'].get('dateTime', event['end'].get('date'))
+
+                formatted_event = {
+                    'event_id': event['id'],
+                    'summary': event.get('summary', 'No Title'),
+                    'description': event.get('description', ''),
+                    'start_time': start,
+                    'end_time': end,
+                    'location': event.get('location', ''),
+                    'attendees': [attendee['email'] for attendee in event.get('attendees', [])],
+                    'created_at': event.get('created'),
+                    'updated_at': event.get('updated')
+                }
+                formatted_events.append(formatted_event)
+
+            return formatted_events
+        except Exception as e:
+            print(f"Error fetching calendar events: {str(e)}")
+            return []
+
 
 calendar_service = GoogleCalendarService() 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, Body
 from typing import List, Optional
 from datetime import datetime
 from src.models.calendar_model import CalendarEvent, CalendarEventCreate, CalendarEventResponse
@@ -8,18 +8,47 @@ from src.services.mongo_service import (
     get_calendar_events,
     get_calendar_event_by_id,
     update_calendar_event,
-    delete_calendar_event
+    delete_calendar_event,
+    get_user_details
 )
 from src.routes.auth import verify_token
+from pydantic import BaseModel
 
 router = APIRouter()
+
+class GoogleCalendarRequest(BaseModel):
+    id_token: str
 
 @router.post("/sync", response_model=List[CalendarEventResponse])
 async def sync_calendar_events(token_data: dict = Depends(verify_token)):
     """Sync calendar events from Google Calendar to the database."""
     try:
-        # Get events from Google Calendar
-        events = calendar_service.get_calendar_events()
+        # Get user from database
+        # print(f"token,,,,, {token_data}")
+        user = await get_user_details({"email": token_data["email"]})
+        # print(f"....... user {user}")
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Check if user has Google account connected
+        if not user.get("is_google_connected"):
+            raise HTTPException(
+                status_code=400, 
+                detail="Google account not connected. Please connect your Google account first."
+            )
+        
+        # Get Google ID token from user document
+        id_token = user.get("google_id_token")
+        access_token = user.get("google_access_token")
+        refresh_token = user.get("google_refresh_token")
+        if not id_token:
+            raise HTTPException(
+                status_code=400,
+                detail="Google ID token not found. Please reconnect your Google account."
+            )
+
+        # Get events from Google Calendar using the ID token
+        events = calendar_service.get_calendar_events(access_token)
         
         # Save events to database
         saved_events = []
@@ -30,6 +59,8 @@ async def sync_calendar_events(token_data: dict = Depends(verify_token)):
             saved_events.append(event)
         
         return saved_events
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

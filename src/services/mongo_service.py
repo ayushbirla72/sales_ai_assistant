@@ -2,7 +2,7 @@ from typing import Optional
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 from src.config import MONGO_URL, MONGO_DB_NAME
-from datetime import datetime
+from datetime import datetime, timedelta
 from pymongo import DESCENDING
 
 client = AsyncIOMotorClient(MONGO_URL)
@@ -98,28 +98,114 @@ async def save_transcription_chunk(sessionId: str, s3_url: str, transcript: str,
     return result.inserted_id
 
 # Save user details
-async def save_user_details(data: object):
-    print(f"dataaaaaaa  {data}")
-    print(f"password {data['password']}")
+async def save_user_details(data: dict) -> dict:
+    """
+    Save user details to the database.
+    
+    Args:
+        data (dict): User data containing:
+            - email (str): User's email
+            - name (str): User's name
+            - password (str, optional): Hashed password
+            - google_id (str, optional): Google user ID
+            - picture (str, optional): Profile picture URL
+            - google_id_token (str, optional): Google ID token
+            - is_google_connected (bool, optional): Whether user is connected with Google
+            - company_name (str, optional): User's company name
+            - mobile_number (str, optional): User's mobile number
+            - position (str, optional): User's position in company
+            - google_access_token (str, optional): Google OAuth2 access token
+            - google_refresh_token (str, optional): Google OAuth2 refresh token
+    
+    Returns:
+        dict: The saved user document with password removed
+    """
     now = datetime.utcnow()
+    
+    # Base document with required fields and defaults
     doc = {
         "email": data["email"],
         "name": data["name"],
-        "password": data["password"],
         "createdAt": now,
-        "updatedAt": now
+        "updatedAt": now,
+        # Default values for optional fields
+        "password": None,
+        "google_id": None,
+        "picture": None,
+        "google_id_token": None,
+        "is_google_connected": False,
+        "company_name": None,
+        "mobile_number": None,
+        "position": None,
+        "google_access_token": None,
+        "google_refresh_token": None
     }
+    
+    # Override defaults with provided values
+    for field in [
+        "password", "google_id", "picture", "google_id_token",
+        "is_google_connected", "company_name", "mobile_number", "position",
+        "google_access_token", "google_refresh_token"
+    ]:
+        if field in data:
+            doc[field] = data[field]
+    
+    # Insert the document
     result = await users_collection.insert_one(doc)
-    inserted_user = await users_collection.find_one({"_id":result.inserted_id})
-    inserted_user["password"] = None
+    
+    # Get the inserted document and remove password before returning
+    inserted_user = await users_collection.find_one({"_id": result.inserted_id})
+    if inserted_user and "password" in inserted_user:
+        inserted_user["password"] = None
+    
     return inserted_user
 
 # Get user details
-async def get_user_details(data: object):
-    result = await users_collection.find_one({"email": data["email"]})
-    print(f"data.. {result}")
-    return result
-
+async def get_user_details(data: dict) -> Optional[dict]:
+    """
+    Get user details from the database.
+    
+    Args:
+        data (dict): Query data containing:
+            - email (str): User's email to search for
+    
+    Returns:
+        Optional[dict]: User document with password removed, or None if not found
+    """
+    try:
+        # Find user by email
+        user = await users_collection.find_one({"email": data["email"]})
+        
+        if not user:
+            return None
+            
+        # Remove password from response
+        if "password" in user:
+            user["password"] = None
+            
+        # Ensure all fields exist with defaults if missing
+        default_fields = {
+            "google_id": None,
+            "picture": None,
+            "google_id_token": None,
+            "is_google_connected": False,
+            "company_name": None,
+            "mobile_number": None,
+            "position": None,
+            "google_access_token": None,
+            "google_refresh_token": None
+        }
+        
+        # Add any missing fields with defaults
+        for field, default_value in default_fields.items():
+            if field not in user:
+                user[field] = default_value
+                
+        return user
+        
+    except Exception as e:
+        print(f"Error getting user details: {str(e)}")
+        return None
 
 async def create_meeting(data: dict):
     print(f"dataaaaaaa  {data}")
@@ -213,36 +299,90 @@ async def update_user_password(email: str, new_hashed_password: str):
     return result.modified_count
 
 async def save_calendar_event(event_data: dict):
-    """Save a calendar event to the database."""
+    """
+    Save a calendar event to the database.
+    
+    Args:
+        event_data (dict): Event data containing:
+            - user_id (str): User's ID
+            - google_id_token (str): User's Google ID token
+            - event_id (str): Calendar event ID
+            - title (str): Event title
+            - description (str): Event description
+            - start_time (datetime): Event start time
+            - end_time (datetime): Event end time
+            - attendees (list): List of attendee emails
+            - location (str, optional): Event location
+            - status (str, optional): Event status
+    """
     now = datetime.utcnow()
     event_data["created_at"] = now
     event_data["updated_at"] = now
     result = await calendar_events_collection.insert_one(event_data)
     return result.inserted_id
 
-async def get_calendar_events(user_id: str, start_date: datetime = None, end_date: datetime = None):
-    """Get calendar events for a user within a date range."""
-    query = {"user_id": user_id}
+async def get_calendar_events(user_id: str, google_id_token: str, start_date: datetime = None, end_date: datetime = None):
+    """
+    Get calendar events for a user within a date range.
+    
+    Args:
+        user_id (str): User's ID
+        google_id_token (str): User's Google ID token
+        start_date (datetime, optional): Start date for filtering events
+        end_date (datetime, optional): End date for filtering events
+    """
+    query = {
+        "user_id": user_id,
+        "google_id_token": google_id_token
+    }
     if start_date and end_date:
         query["start_time"] = {"$gte": start_date, "$lte": end_date}
     
     cursor = calendar_events_collection.find(query).sort("start_time", 1)
     return await cursor.to_list(length=None)
 
-async def get_calendar_event_by_id(event_id: str):
-    """Get a specific calendar event by ID."""
-    return await calendar_events_collection.find_one({"event_id": event_id})
+async def get_calendar_event_by_id(event_id: str, google_id_token: str):
+    """
+    Get a specific calendar event by ID.
+    
+    Args:
+        event_id (str): Calendar event ID
+        google_id_token (str): User's Google ID token
+    """
+    return await calendar_events_collection.find_one({
+        "event_id": event_id,
+        "google_id_token": google_id_token
+    })
 
-async def update_calendar_event(event_id: str, update_data: dict):
-    """Update a calendar event."""
+async def update_calendar_event(event_id: str, google_id_token: str, update_data: dict):
+    """
+    Update a calendar event.
+    
+    Args:
+        event_id (str): Calendar event ID
+        google_id_token (str): User's Google ID token
+        update_data (dict): Updated event data
+    """
     update_data["updated_at"] = datetime.utcnow()
     result = await calendar_events_collection.update_one(
-        {"event_id": event_id},
+        {
+            "event_id": event_id,
+            "google_id_token": google_id_token
+        },
         {"$set": update_data}
     )
     return result.modified_count
 
-async def delete_calendar_event(event_id: str):
-    """Delete a calendar event."""
-    result = await calendar_events_collection.delete_one({"event_id": event_id})
+async def delete_calendar_event(event_id: str, google_id_token: str):
+    """
+    Delete a calendar event.
+    
+    Args:
+        event_id (str): Calendar event ID
+        google_id_token (str): User's Google ID token
+    """
+    result = await calendar_events_collection.delete_one({
+        "event_id": event_id,
+        "google_id_token": google_id_token
+    })
     return result.deleted_count
