@@ -5,9 +5,7 @@ from typing import List, Dict, Any
 import os
 
 SCOPES = [
-    'https://www.googleapis.com/auth/calendar.readonly',
-    'https://www.googleapis.com/auth/calendar.events.readonly',
-    'https://www.googleapis.com/auth/calendar.events'
+    'https://www.googleapis.com/auth/calendar.readonly'
 ]
 
 class GoogleCalendarService:

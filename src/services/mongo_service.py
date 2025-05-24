@@ -299,90 +299,56 @@ async def update_user_password(email: str, new_hashed_password: str):
     return result.modified_count
 
 async def save_calendar_event(event_data: dict):
-    """
-    Save a calendar event to the database.
-    
-    Args:
-        event_data (dict): Event data containing:
-            - user_id (str): User's ID
-            - google_id_token (str): User's Google ID token
-            - event_id (str): Calendar event ID
-            - title (str): Event title
-            - description (str): Event description
-            - start_time (datetime): Event start time
-            - end_time (datetime): Event end time
-            - attendees (list): List of attendee emails
-            - location (str, optional): Event location
-            - status (str, optional): Event status
-    """
+    """Save a calendar event to the database."""
     now = datetime.utcnow()
-    event_data["created_at"] = now
-    event_data["updated_at"] = now
-    result = await calendar_events_collection.insert_one(event_data)
+    doc = {
+        **event_data,
+        "createdAt": now,
+        "updatedAt": now
+    }
+    result = await calendar_events_collection.insert_one(doc)
     return result.inserted_id
 
-async def get_calendar_events(user_id: str, google_id_token: str, start_date: datetime = None, end_date: datetime = None):
-    """
-    Get calendar events for a user within a date range.
+async def get_calendar_events(user_id: str, start_date: datetime = None, end_date: datetime = None):
+    """Get calendar events for a user within a date range."""
+    query = {"user_id": user_id}
     
-    Args:
-        user_id (str): User's ID
-        google_id_token (str): User's Google ID token
-        start_date (datetime, optional): Start date for filtering events
-        end_date (datetime, optional): End date for filtering events
-    """
-    query = {
-        "user_id": user_id,
-        "google_id_token": google_id_token
-    }
     if start_date and end_date:
-        query["start_time"] = {"$gte": start_date, "$lte": end_date}
+        query["start_time"] = {
+            "$gte": start_date,
+            "$lte": end_date
+        }
     
     cursor = calendar_events_collection.find(query).sort("start_time", 1)
     return await cursor.to_list(length=None)
 
-async def get_calendar_event_by_id(event_id: str, google_id_token: str):
-    """
-    Get a specific calendar event by ID.
-    
-    Args:
-        event_id (str): Calendar event ID
-        google_id_token (str): User's Google ID token
-    """
-    return await calendar_events_collection.find_one({
-        "event_id": event_id,
-        "google_id_token": google_id_token
-    })
-
-async def update_calendar_event(event_id: str, google_id_token: str, update_data: dict):
-    """
-    Update a calendar event.
-    
-    Args:
-        event_id (str): Calendar event ID
-        google_id_token (str): User's Google ID token
-        update_data (dict): Updated event data
-    """
-    update_data["updated_at"] = datetime.utcnow()
-    result = await calendar_events_collection.update_one(
-        {
+async def get_calendar_event_by_id(event_id: str, user_id: str):
+    """Get a specific calendar event by event_id and user_id."""
+    try:
+        doc = await calendar_events_collection.find_one({
             "event_id": event_id,
-            "google_id_token": google_id_token
-        },
-        {"$set": update_data}
-    )
-    return result.modified_count
+            "user_id": user_id
+        })
+        return doc
+    except:
+        return None
 
-async def delete_calendar_event(event_id: str, google_id_token: str):
-    """
-    Delete a calendar event.
-    
-    Args:
-        event_id (str): Calendar event ID
-        google_id_token (str): User's Google ID token
-    """
-    result = await calendar_events_collection.delete_one({
-        "event_id": event_id,
-        "google_id_token": google_id_token
-    })
-    return result.deleted_count
+async def update_calendar_event(event_id: str, update_data: dict):
+    """Update a calendar event."""
+    try:
+        update_data["updatedAt"] = datetime.utcnow()
+        result = await calendar_events_collection.update_one(
+            {"_id": ObjectId(event_id)},
+            {"$set": update_data}
+        )
+        return result.modified_count > 0
+    except:
+        return False
+
+async def delete_calendar_event(event_id: str):
+    """Delete a calendar event."""
+    try:
+        result = await calendar_events_collection.delete_one({"_id": ObjectId(event_id)})
+        return result.deleted_count > 0
+    except:
+        return False

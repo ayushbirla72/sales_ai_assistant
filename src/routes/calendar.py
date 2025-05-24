@@ -23,34 +23,25 @@ class GoogleCalendarRequest(BaseModel):
 async def sync_calendar_events(token_data: dict = Depends(verify_token)):
     """Sync calendar events from Google Calendar to the database."""
     try:
-        # Get user from database
-        # print(f"token,,,,, {token_data}")
         user = await get_user_details({"email": token_data["email"]})
-        # print(f"....... user {user}")
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        # Check if user has Google account connected
         if not user.get("is_google_connected"):
             raise HTTPException(
                 status_code=400, 
                 detail="Google account not connected. Please connect your Google account first."
             )
         
-        # Get Google ID token from user document
-        id_token = user.get("google_id_token")
         access_token = user.get("google_access_token")
-        refresh_token = user.get("google_refresh_token")
-        if not id_token:
+        if not access_token:
             raise HTTPException(
                 status_code=400,
-                detail="Google ID token not found. Please reconnect your Google account."
+                detail="Google access token not found. Please reconnect your Google account."
             )
 
-        # Get events from Google Calendar using the ID token
         events = calendar_service.get_calendar_events(access_token)
         
-        # Save events to database
         saved_events = []
         for event in events:
             event["user_id"] = token_data["user_id"]
@@ -85,11 +76,9 @@ async def get_events(
 async def get_event(event_id: str, token_data: dict = Depends(verify_token)):
     """Get a specific calendar event."""
     try:
-        event = await get_calendar_event_by_id(event_id)
+        event = await get_calendar_event_by_id(event_id, token_data["user_id"])
         if not event:
             raise HTTPException(status_code=404, detail="Event not found")
-        if event["user_id"] != token_data["user_id"]:
-            raise HTTPException(status_code=403, detail="Not authorized to access this event")
         return event
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -102,17 +91,15 @@ async def update_event(
 ):
     """Update a calendar event."""
     try:
-        event = await get_calendar_event_by_id(event_id)
+        event = await get_calendar_event_by_id(event_id, token_data["user_id"])
         if not event:
             raise HTTPException(status_code=404, detail="Event not found")
-        if event["user_id"] != token_data["user_id"]:
-            raise HTTPException(status_code=403, detail="Not authorized to update this event")
         
         updated = await update_calendar_event(event_id, event_data.dict())
         if not updated:
             raise HTTPException(status_code=500, detail="Failed to update event")
         
-        updated_event = await get_calendar_event_by_id(event_id)
+        updated_event = await get_calendar_event_by_id(event_id, token_data["user_id"])
         return updated_event
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -121,16 +108,67 @@ async def update_event(
 async def delete_event(event_id: str, token_data: dict = Depends(verify_token)):
     """Delete a calendar event."""
     try:
-        event = await get_calendar_event_by_id(event_id)
+        event = await get_calendar_event_by_id(event_id, token_data["user_id"])
         if not event:
             raise HTTPException(status_code=404, detail="Event not found")
-        if event["user_id"] != token_data["user_id"]:
-            raise HTTPException(status_code=403, detail="Not authorized to delete this event")
         
         deleted = await delete_calendar_event(event_id)
         if not deleted:
             raise HTTPException(status_code=500, detail="Failed to delete event")
         
         return {"message": "Event deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/sync-events", response_model=List[CalendarEventResponse])
+async def sync_events_from_body(
+    events: List[CalendarEventCreate],
+    token_data: dict = Depends(verify_token)
+):
+    """Sync calendar events from request body to the database.
+    If an event with the same event_id exists, it will be updated instead of created.
+    """
+    try:
+        user = await get_user_details({"email": token_data["email"]})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        synced_events = []
+        for event_data in events:
+            # Check if event exists by event_id
+            existing_event = await get_calendar_event_by_id(event_data.event_id,user_id=token_data["user_id"]) if hasattr(event_data, 'event_id') else None
+            
+            if existing_event:
+                # Update existing event
+                if existing_event["user_id"] != token_data["user_id"]:
+                    raise HTTPException(status_code=403, detail=f"Not authorized to update event {event_data.event_id}")
+                
+                updated = await update_calendar_event(
+                    existing_event["_id"],
+                    {
+                        **event_data.dict(),
+                        "updated_at": datetime.utcnow(),
+                        "user_id": token_data["user_id"]
+                    }
+                )
+                if not updated:
+                    raise HTTPException(status_code=500, detail=f"Failed to update event {event_data.event_id}")
+                
+                updated_event = await get_calendar_event_by_id(existing_event["_id"])
+                synced_events.append(updated_event)
+            else:
+                # Create new event
+                event_dict = event_data.dict()
+                event_dict.update({
+                    "created_at": datetime.utcnow(),
+                    "updated_at": datetime.utcnow(),
+                    "user_id": token_data["user_id"]
+                })
+                
+                event_id = await save_calendar_event(event_dict)
+                event_dict["_id"] = event_id
+                synced_events.append(event_dict)
+        
+        return synced_events
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) 
