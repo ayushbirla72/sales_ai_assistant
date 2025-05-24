@@ -122,13 +122,30 @@ async def delete_event(event_id: str, token_data: dict = Depends(verify_token)):
 
 @router.post("/sync-events", response_model=List[CalendarEventResponse])
 async def sync_events_from_body(
-    events: List[CalendarEventCreate],
+    events: List[CalendarEventCreate] = Body(..., description="List of calendar events to sync"),
     token_data: dict = Depends(verify_token)
 ):
     """Sync calendar events from request body to the database.
     If an event with the same event_id exists, it will be updated instead of created.
+    
+    Request body example:
+    {
+        "events": [
+            {
+                "summary": "Team Meeting",
+                "description": "Weekly sync",
+                "start_time": "2024-03-20T10:00:00Z",
+                "end_time": "2024-03-20T11:00:00Z",
+                "location": "Conference Room A",
+                "attendees": ["user1@example.com"]
+            }
+        ]
+    }
     """
     try:
+        if not events:
+            raise HTTPException(status_code=400, detail="No events provided in request body")
+
         user = await get_user_details({"email": token_data["email"]})
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
@@ -136,13 +153,10 @@ async def sync_events_from_body(
         synced_events = []
         for event_data in events:
             # Check if event exists by event_id
-            existing_event = await get_calendar_event_by_id(event_data.event_id,user_id=token_data["user_id"]) if hasattr(event_data, 'event_id') else None
+            existing_event = await get_calendar_event_by_id(event_data.event_id, user_id=token_data["user_id"]) if hasattr(event_data, 'event_id') else None
             
             if existing_event:
                 # Update existing event
-                if existing_event["user_id"] != token_data["user_id"]:
-                    raise HTTPException(status_code=403, detail=f"Not authorized to update event {event_data.event_id}")
-                
                 updated = await update_calendar_event(
                     existing_event["_id"],
                     {
@@ -154,7 +168,7 @@ async def sync_events_from_body(
                 if not updated:
                     raise HTTPException(status_code=500, detail=f"Failed to update event {event_data.event_id}")
                 
-                updated_event = await get_calendar_event_by_id(existing_event["_id"])
+                updated_event = await get_calendar_event_by_id(event_data.event_id, user_id=token_data["user_id"])
                 synced_events.append(updated_event)
             else:
                 # Create new event
@@ -170,5 +184,7 @@ async def sync_events_from_body(
                 synced_events.append(event_dict)
         
         return synced_events
+    except HTTPException as he:
+        raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) 
