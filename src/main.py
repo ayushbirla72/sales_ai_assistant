@@ -7,7 +7,7 @@ from src.routes.calendar import router as calendar_router
 
 app = FastAPI(title="Audio Uploader with Transcription & Diarization")
 
-# app.include_router(audio_router, prefix="/api")
+# app.include_router(audio_router, prefix="/api/user")
 app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
 app.include_router(suggestion_router, prefix="/api/sg")
 # app.include_router(chatbot, prefix="/api/chat")
