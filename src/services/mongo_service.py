@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 from src.config import MONGO_URL, MONGO_DB_NAME
@@ -352,3 +352,57 @@ async def delete_calendar_event(event_id: str):
         return result.deleted_count > 0
     except:
         return False
+
+async def save_meeting_chat(chat_message: dict) -> str:
+    """Save a chat message to the database."""
+    result = await db.meeting_chats.insert_one(chat_message)
+    return str(result.inserted_id)
+
+async def save_audio_chunk(audio_chunk: dict) -> str:
+    """Save an audio chunk to the database."""
+    result = await db.audio_chunks.insert_one(audio_chunk)
+    return str(result.inserted_id)
+
+async def create_meeting_session(session: dict) -> str:
+    """Create a new meeting session."""
+    result = await db.meeting_sessions.insert_one(session)
+    return str(result.inserted_id)
+
+async def update_meeting_session(meeting_id: str, user_id: str, update_data: dict) -> bool:
+    """Update a meeting session."""
+    result = await db.meeting_sessions.update_one(
+        {"meeting_id": meeting_id, "user_id": user_id},
+        {"$set": update_data}
+    )
+    return result.modified_count > 0
+
+async def get_meeting_session(meeting_id: str, user_id: str) -> Optional[dict]:
+    """Get a meeting session."""
+    return await db.meeting_sessions.find_one({
+        "meeting_id": meeting_id,
+        "user_id": user_id
+    })
+
+async def get_meeting_chats(meeting_id: str, user_id: str, last_sync: Optional[datetime] = None) -> List[dict]:
+    """Get chat messages for a meeting."""
+    query = {
+        "meeting_id": meeting_id,
+        "user_id": user_id
+    }
+    if last_sync:
+        query["timestamp"] = {"$gt": last_sync}
+    
+    cursor = db.meeting_chats.find(query).sort("timestamp", 1)
+    return await cursor.to_list(length=None)
+
+async def get_audio_chunks(meeting_id: str, user_id: str, last_sync: Optional[datetime] = None) -> List[dict]:
+    """Get audio chunks for a meeting."""
+    query = {
+        "meeting_id": meeting_id,
+        "user_id": user_id
+    }
+    if last_sync:
+        query["timestamp"] = {"$gt": last_sync}
+    
+    cursor = db.audio_chunks.find(query).sort("timestamp", 1)
+    return await cursor.to_list(length=None)

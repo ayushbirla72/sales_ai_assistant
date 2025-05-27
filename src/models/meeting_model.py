@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from bson import ObjectId
+from datetime import datetime
 
 class MeetingCreate(BaseModel):
    
@@ -30,3 +31,26 @@ def meeting_doc_to_response(doc):
         product_details=doc.get("product_details"),
         scheduled_time=doc.get("scheduled_time")
     )
+
+class MeetingChatMessage(BaseModel):
+    meeting_id: str
+    message: str
+    sender: str
+    timestamp: datetime
+    user_id: str
+
+class AudioChunk(BaseModel):
+    meeting_id: str
+    chunk_data: str  # base64 encoded audio data
+    timestamp: datetime
+    chunk_index: int
+    user_id: str
+
+class MeetingSession(BaseModel):
+    meeting_id: str
+    user_id: str
+    start_time: datetime
+    end_time: Optional[datetime] = None
+    status: str  # "active" or "ended"
+    last_chat_sync: Optional[datetime] = None
+    last_audio_sync: Optional[datetime] = None
