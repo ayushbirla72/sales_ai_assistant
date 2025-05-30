@@ -1,7 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from pydantic import BaseModel, EmailStr
-from motor.motor_asyncio import AsyncIOMotorClient
-from src.services.mongo_service import get_user_details, save_user_details, update_user_password
+from src.services.mongo_service import (
+    get_user_details, 
+    save_user_details, 
+    update_user_password,
+    update_user_profile,
+    update_user_google_info
+)
 from src.utils import hash_password, verify_password
 import os
 from dotenv import load_dotenv
@@ -11,10 +16,6 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from src.services.google_auth_service import verify_google_token
 
 load_dotenv()
-
-client = AsyncIOMotorClient(os.getenv("MONGO_URL"))
-db = client["sales_ai_assistant"]
-users_collection = db["users"]
 
 router = APIRouter()
 
@@ -31,7 +32,6 @@ class GoogleAuthRequest(BaseModel):
     id_token: str
     google_access_token: str
     google_refresh_token: str
-
 
 class ConnectGoogleRequest(BaseModel):
     id_token: str
@@ -92,11 +92,7 @@ async def signup(data: SignupRequest):
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered.")
     
-    print(f"loggggggg... {data}")
-
     hashed_pw = hash_password(data.password)
-
-    print(f"hass pasword {hashed_pw}")
     user = await save_user_details({
         "name": data.name, 
         "email": data.email, 
@@ -106,12 +102,10 @@ async def signup(data: SignupRequest):
     payload = {
         "user_id": str(user["_id"]),
         "email": data.email,
-        "access_token": data.google_access_token,
         "exp": datetime.utcnow() + timedelta(hours=24)
     }
     secret = os.getenv("JWT_SECRET", "default_secret")
     token = jwt.encode(payload, secret, algorithm="HS256")
-    print(f"tokennnn.... {token}")
 
     return {"message": "Signup successful.", "userId": str(user), "access_token": token}
 
@@ -119,7 +113,6 @@ async def signup(data: SignupRequest):
 async def login(data: LoginRequest):
     """Login with email and password"""
     try:
-        print(f"Login attempt for email: {data.email}")
         user = await get_user_details({"email": data.email})
         
         if not user:
@@ -177,8 +170,6 @@ async def get_profile(data: GetProfileRequest, email: str = Depends(verify_token
     user = await get_user_details({"email": data.email})
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
-    # Remove password from the response
-    user.pop("password", None)
     return user
 
 @router.post("/update-profile")
@@ -187,20 +178,14 @@ async def update_profile(data: UpdateProfileRequest, email: str = Depends(verify
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
     
-    # Update user profile
-    now = datetime.utcnow()
-    result = await users_collection.update_one(
-        {"email": data.email},
-        {"$set": {
-            "name": data.name,
-            "company_name": data.company_name,
-            "mobile_number": data.mobile_number,
-            "position": data.position,
-            "updatedAt": now
-        }}
-    )
+    update_data = {
+        "name": data.name,
+        "company_name": data.company_name,
+        "mobile_number": data.mobile_number,
+        "position": data.position
+    }
     
-    if result.modified_count:
+    if await update_user_profile(data.email, update_data):
         return {"message": "Profile updated successfully."}
     else:
         raise HTTPException(status_code=500, detail="Failed to update profile.")
@@ -213,35 +198,24 @@ async def google_auth(data: GoogleAuthRequest):
     """
     try:
         # Verify Google token
-        print("Verifying Google token...")
         user_info = verify_google_token(data.id_token)
-        print(f"User info from Google: {user_info}")
         
         # Check if user exists
         user = await get_user_details({"email": user_info["email"]})
-        print(f"Existing user: {user}")
 
         if user:
             # User exists - Update Google info and login
-            print("User exists, updating Google info...")
-            await users_collection.update_one(
-                {"email": user_info["email"]},
-                {
-                    "$set": {
-                        "google_id": user_info["google_id"],
-                        "picture": user_info["picture"],
-                        "google_id_token": data.id_token,
-                        "is_google_connected": True,
-                        "updatedAt": datetime.utcnow(),
-                        "google_access_token": data.google_access_token,
-                        "google_refresh_token": data.google_refresh_token,
-                    }
-                }
-            )
+            google_data = {
+                "google_id": user_info["google_id"],
+                "picture": user_info["picture"],
+                "google_id_token": data.id_token,
+                "google_access_token": data.google_access_token,
+                "google_refresh_token": data.google_refresh_token,
+            }
+            await update_user_google_info(user_info["email"], google_data)
             message = "Google login successful."
         else:
             # User doesn't exist - Create new account
-            print("Creating new user...")
             user = await save_user_details({
                 "name": user_info["name"],
                 "email": user_info["email"],
@@ -250,8 +224,6 @@ async def google_auth(data: GoogleAuthRequest):
                 "picture": user_info["picture"],
                 "google_id_token": data.id_token,
                 "is_google_connected": True,
-                "createdAt": datetime.utcnow(),
-                "updatedAt": datetime.utcnow(),
                 "google_access_token": data.google_access_token,
                 "google_refresh_token": data.google_refresh_token,
             })
@@ -260,31 +232,27 @@ async def google_auth(data: GoogleAuthRequest):
         # Generate JWT token
         payload = {
             "user_id": str(user["_id"]),
-            "email": user_info["email"],
+            "email": user["email"],
             "exp": datetime.utcnow() + timedelta(hours=24)
         }
-        print(f"JWT payload: {payload}")
-        
         secret = os.getenv("JWT_SECRET", "default_secret")
         token = jwt.encode(payload, secret, algorithm="HS256")
-        print(f"Generated JWT token: {token}")
 
         return {
-            "message": "Login/Signup successful",
+            "message": message,
             "userId": str(user["_id"]),
             "access_token": token,
             "user": {
-                "name": user_info["name"],
-                "email": user_info["email"],
-                "picture": user_info["picture"],
-                "is_google_connected": True
+                "name": user.get("name"),
+                "email": user["email"],
+                "picture": user.get("picture"),
+                "is_google_connected": user.get("is_google_connected", False)
             }
         }
-    except ValueError as e:
-        print(f"Token verification error: {str(e)}")
-        raise HTTPException(status_code=401, detail=str(e))
+    except ValueError as ve:
+        raise HTTPException(status_code=401, detail=str(ve))
     except Exception as e:
-        print(f"Unexpected error: {str(e)}")
+        print(f"Google auth error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/connect-google")
@@ -292,35 +260,36 @@ async def connect_google_account(
     data: ConnectGoogleRequest,
     token_data: dict = Depends(verify_token)
 ):
-    """Connect Google account to an existing user account."""
+    """
+    Connect an existing account with Google.
+    """
     try:
         # Verify Google token
         user_info = verify_google_token(data.id_token)
         
-        # Get user from database
-        user = await get_user_details({"email": token_data["email"]})
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found.")
+        # Check if the Google account is already connected to another user
+        existing_user = await get_user_details({"google_id": user_info["google_id"]})
+        if existing_user and existing_user["email"] != token_data["email"]:
+            raise HTTPException(
+                status_code=400,
+                detail="This Google account is already connected to another user."
+            )
         
-        # Update user's Google info
-        await users_collection.update_one(
-            {"email": token_data["email"]},
-            {
-                "$set": {
-                    "google_id": user_info["google_id"],
-                    "picture": user_info["picture"],
-                    "google_id_token": data.id_token,
-                    "is_google_connected": True,
-                    "updatedAt": datetime.utcnow()
-                }
-            }
-        )
-
-        return {
-            "message": "Google account connected successfully.",
+        # Update user with Google info
+        google_data = {
+            "google_id": user_info["google_id"],
+            "picture": user_info["picture"],
+            "google_id_token": data.id_token,
             "is_google_connected": True
         }
-    except ValueError as e:
-        raise HTTPException(status_code=401, detail=str(e))
+        
+        if await update_user_google_info(token_data["email"], google_data):
+            return {"message": "Google account connected successfully."}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to connect Google account.")
+            
+    except ValueError as ve:
+        raise HTTPException(status_code=401, detail=str(ve))
     except Exception as e:
+        print(f"Connect Google error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

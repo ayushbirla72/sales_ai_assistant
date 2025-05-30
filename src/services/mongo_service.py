@@ -352,3 +352,67 @@ async def delete_calendar_event(eventId: str):
         return result.deleted_count > 0
     except:
         return False
+
+async def update_user_profile(email: str, update_data: dict) -> bool:
+    """
+    Update user profile information.
+    
+    Args:
+        email (str): User's email
+        update_data (dict): Data to update containing:
+            - name (str): User's name
+            - company_name (str): User's company name
+            - mobile_number (str): User's mobile number
+            - position (str): User's position in company
+    
+    Returns:
+        bool: True if update was successful, False otherwise
+    """
+    try:
+        now = datetime.utcnow()
+        result = await users_collection.update_one(
+            {"email": email},
+            {
+                "$set": {
+                    **update_data,
+                    "updatedAt": now
+                }
+            }
+        )
+        return result.modified_count > 0
+    except Exception as e:
+        print(f"Error updating user profile: {str(e)}")
+        return False
+
+async def update_user_google_info(email: str, google_data: dict) -> bool:
+    """
+    Update user's Google authentication information.
+    
+    Args:
+        email (str): User's email
+        google_data (dict): Google authentication data containing:
+            - google_id (str): Google user ID
+            - picture (str): Profile picture URL
+            - google_id_token (str): Google ID token
+            - google_access_token (str): Google OAuth2 access token
+            - google_refresh_token (str): Google OAuth2 refresh token
+    
+    Returns:
+        bool: True if update was successful, False otherwise
+    """
+    try:
+        now = datetime.utcnow()
+        result = await users_collection.update_one(
+            {"email": email},
+            {
+                "$set": {
+                    **google_data,
+                    "is_google_connected": True,
+                    "updatedAt": now
+                }
+            }
+        )
+        return result.modified_count > 0
+    except Exception as e:
+        print(f"Error updating Google info: {str(e)}")
+        return False
