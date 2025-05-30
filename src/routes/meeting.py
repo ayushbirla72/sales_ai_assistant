@@ -58,16 +58,16 @@ async def upload_salesperson_audio(
 @router.post("/upload-chunk")
 async def upload_chunk(
     file: UploadFile = File(...),
-    sessionId: str = Form(...),
+    meetingId: str = Form(...),
     # userId: str = Form(...),
     token_data: dict = Depends(verify_token)
 ):
     userId = token_data["user_id"]
-    if not sessionId or not file.filename:
-        raise HTTPException(status_code=400, detail="Missing sessionId or file")
+    if not meetingId or not file.filename:
+        raise HTTPException(status_code=400, detail="Missing meetingId or file")
 
     # Upload chunk to S3
-    chunk_name = f"audio_recording/{sessionId}_{uuid.uuid4()}_{file.filename}"
+    chunk_name = f"audio_recording/{meetingId}_{uuid.uuid4()}_{file.filename}"
     content = await file.read()
     s3_url = upload_file_to_s3(chunk_name, content)
 
@@ -75,10 +75,10 @@ async def upload_chunk(
     transcript = transcribe_audio_bytes(content)
 
     # Save the chunk metadata
-    await save_chunk_metadata(sessionId, chunk_name, userId, transcript, s3_url)
+    await save_chunk_metadata(meetingId, chunk_name, userId, transcript, s3_url)
 
     # ✅ Fire-and-forget the heavy suggestion task
-    asyncio.create_task(handle_post_processing(sessionId, userId))
+    asyncio.create_task(handle_post_processing(meetingId, userId))
 
     # ✅ Send response immediately
     return {
@@ -88,16 +88,58 @@ async def upload_chunk(
         "transcript": transcript,
     }
 
+@router.post("/upload-chunk-google-meet")
+async def upload_chunk_google_meet(
+    audio: UploadFile = File(...),
+    metadata: str = Form(...),
+):
+    try:
+        metadata_dict = json.loads(metadata)
+        
+        # Extract metadata
+        meeting_id = metadata_dict.get("meeting_id")
+        container_id = metadata_dict.get("container_id")
+        chunk_filename = metadata_dict.get("chunk_filename")
+        userId = metadata_dict.get("user_id")
+        
+        if not meeting_id or not container_id or not chunk_filename:
+            raise HTTPException(status_code=400, detail="Missing required metadata fields")
+
+        # Upload chunk to S3
+        chunk_name = f"audio_recording/{meeting_id}/{container_id}/{chunk_filename}"
+        content = await audio.read()
+        s3_url = upload_file_to_s3(chunk_name, content)
+
+        # Transcribe the uploaded audio chunk
+        transcript = transcribe_audio_bytes(content)
+
+        # Save the chunk metadata
+        await save_chunk_metadata(meeting_id, chunk_name, userId, transcript, s3_url)
+
+        # Fire-and-forget the heavy suggestion task
+        asyncio.create_task(handle_post_processing(meeting_id, userId))
+
+        return {
+            "message": "Chunk uploaded successfully",
+            "chunk": chunk_name,
+            "s3_url": s3_url,
+            "transcript": transcript,
+        }
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid metadata JSON format")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing chunk: {str(e)}")
+
 
 # 🔁 This runs in background
-async def handle_post_processing(sessionId: str, userId: str):
+async def handle_post_processing(meetingId: str, userId: str):
     try:
         # Get all previous transcripts
-        chunk_list = await get_chunk_list(sessionId)
+        chunk_list = await get_chunk_list(meetingId)
         full_transcript = "\n".join(chunk["transcript"] for chunk in chunk_list if "transcript" in chunk)
 
         # Get meeting info
-        meeting = await get_meeting_by_id(sessionId)
+        meeting = await get_meeting_by_id(meetingId)
         description = meeting.get("description", "")
         product_details = meeting.get("product_details", "")
 
@@ -106,7 +148,7 @@ async def handle_post_processing(sessionId: str, userId: str):
         suggestions = run_instruction(instruction, f"Transcript:\n{full_transcript}")
         print(f"suggestion result is ............. {suggestions}")
         # Save suggestions
-        await save_suggestion(sessionId, userId, transcript=full_transcript, suggestion=suggestions)
+        await save_suggestion(meetingId, userId, transcript=full_transcript, suggestion=suggestions)
 
     except Exception as e:
         # Optionally log the error
@@ -117,22 +159,22 @@ async def handle_post_processing(sessionId: str, userId: str):
 @router.post("/upload-audio-chunk")
 async def upload_audio_chunk(
     file: UploadFile = File(...),
-    sessionId: str = Form(...),
+    meetingId: str = Form(...),
    
     token_data: dict = Depends(verify_token)
 ):
     userId = token_data["user_id"]
     print("hello")
     print(f"file {file}")
-    if not file or not sessionId or not userId:
-        raise HTTPException(400, detail="Missing file or sessionId or userId")
+    if not file or not meetingId or not userId:
+        raise HTTPException(400, detail="Missing file or meetingId or userId")
 
     # Read file content
     print(f"file {file}")
     audio_bytes = await file.read()
 
     # Generate unique filename
-    unique_name = f"audio_recording/{sessionId}_{uuid.uuid4()}.wav"
+    unique_name = f"audio_recording/{meetingId}_{uuid.uuid4()}.wav"
 
     # Upload chunk to S3
     s3_url = upload_file_to_s3(unique_name, audio_bytes)
@@ -141,10 +183,10 @@ async def upload_audio_chunk(
     transcript = transcribe_audio_bytes(audio_bytes)
 
     # Optional: Store transcription metadata in MongoDB
-    doc_id = await save_transcription_chunk(sessionId, s3_url, transcript,userId)
+    doc_id = await save_transcription_chunk(meetingId, s3_url, transcript,userId)
 
     return {
-        "sessionId": sessionId,
+        "meetingId": meetingId,
         "transcript": transcript,
         "chunkUrl": s3_url,
         "id": str(doc_id)
@@ -152,15 +194,15 @@ async def upload_audio_chunk(
 
 @router.post("/finalize-session")
 async def finalize_session(
-    sessionId: str = Body(...), 
+    meetingId: str = Body(...), 
     # userId: str = Body(...),
     token_data: dict = Depends(verify_token)
 ):
     userId = token_data["user_id"]
-    if not sessionId:
-        raise HTTPException(status_code=400, detail="Missing sessionId")
+    if not meetingId:
+        raise HTTPException(status_code=400, detail="Missing meetingId")
 
-    chunk_keys = await get_chunk_list(sessionId)
+    chunk_keys = await get_chunk_list(meetingId)
     if not chunk_keys:
         raise HTTPException(status_code=404, detail="No chunks found")
 
@@ -183,12 +225,12 @@ async def finalize_session(
             local_files.append(local_path)
 
         # Merge chunks
-        final_path = os.path.join(temp_dir, f"{sessionId}_merged.wav")
+        final_path = os.path.join(temp_dir, f"{meetingId}_merged.wav")
         merge_audio_chunks(local_files, final_path)
 
          # If upload_file_to_s3 is async, await it
         with open(final_path, "rb") as f:
-            s3_url = upload_file_to_s3(f"final_recording/{sessionId}_merged.wav", f.read())
+            s3_url = upload_file_to_s3(f"final_recording/{meetingId}_merged.wav", f.read())
 
         # Fetch salesperson sample from DB
         sample_url = await get_salesperson_sample(userId)
@@ -208,15 +250,15 @@ async def finalize_session(
         results = process_segments(diarization, final_path, ref_embedding)
          # If upload_file_to_s3 is async, await it
         with open(final_path, "rb") as f:
-         s3_url = upload_file_to_s3(f"final_recording/{sessionId}_merged.wav", f.read())
+         s3_url = upload_file_to_s3(f"final_recording/{meetingId}_merged.wav", f.read())
 
          transcript = ""
          speakers = []
 
-         doc_id = await save_final_audio(sessionId, s3_url, results, userId)
+         doc_id = await save_final_audio(meetingId, s3_url, results, userId)
 
            # ✅ Run summarization in background
-         asyncio.create_task(handle_finalize_post_processing(sessionId, userId, results))
+         asyncio.create_task(handle_finalize_post_processing(meetingId, userId, results))
 
          return {
             "id": str(doc_id),
@@ -234,10 +276,10 @@ async def finalize_session(
             os.remove(sample_path)
 
 
-async def handle_finalize_post_processing(sessionId: str, userId: str, transcript: str):
+async def handle_finalize_post_processing(meetingId: str, userId: str, transcript: str):
     try:
         # Get meeting metadata
-        meeting = await get_meeting_by_id(sessionId)
+        meeting = await get_meeting_by_id(meetingId)
         description = meeting.get("description", "")
         product_details = meeting.get("product_details", "")
 
@@ -275,7 +317,7 @@ async def handle_finalize_post_processing(sessionId: str, userId: str, transcrip
         print(f"📄 Summary:\n{summary}\n\n💡 Suggestions:\n{suggestion}")
 
         # --- Step 5: Save to DB ---
-        await update_final_summary_and_suggestion(sessionId, userId, summary, suggestion)
+        await update_final_summary_and_suggestion(meetingId, userId, summary, suggestion)
 
     except Exception as e:
         print(f"❌ Error in finalize post-processing: {e}")

@@ -17,13 +17,13 @@ meetings_collection = db["meetings"]
 prediction_collection = db["predictions"]
 suggestion_collection = db["suggestions"]
 meeting_summry_collection = db["meetingSummrys"]
-calendar_events_collection = db["calendar_events"]
+calendar_events_collection = db["calendarEvents"]
 
 # Save chunk metadata
 async def save_chunk_metadata(session_id: str, chunk_name: str, userId: str, transcript: str, s3_url: str):
     now = datetime.utcnow()
     doc = {
-        "sessionId": session_id,
+        "meetingId": session_id,
         "s3_url": s3_url,
         "transcript": transcript,
         "uploadedAt": now,
@@ -33,7 +33,7 @@ async def save_chunk_metadata(session_id: str, chunk_name: str, userId: str, tra
         "chunk_name": chunk_name,
     }
     await chunks_col.update_one(
-        {"sessionId": session_id, "userId": userId},
+        {"meetingId": session_id, "userId": userId},
         {
             "$push": {"chunks": doc},
             "$set": {"updatedAt": now},
@@ -44,7 +44,7 @@ async def save_chunk_metadata(session_id: str, chunk_name: str, userId: str, tra
 
 # Get chunk list
 async def get_chunk_list(session_id: str):
-    doc = await chunks_col.find_one({"sessionId": session_id})
+    doc = await chunks_col.find_one({"meetingId": session_id})
     print(f"chunksss {doc}")
     return doc["chunks"] if doc else []
 
@@ -52,7 +52,7 @@ async def get_chunk_list(session_id: str):
 async def save_final_audio(session_id: str, s3_url: str, results: list, userId: str):
     now = datetime.utcnow()
     doc = {
-        "sessionId": session_id,
+        "meetingId": session_id,
         "s3_url": s3_url,
         "results": results,
         "userId": userId,
@@ -83,10 +83,10 @@ async def get_salesperson_sample(userId: str):
     return result
 
 # Save transcription chunk
-async def save_transcription_chunk(sessionId: str, s3_url: str, transcript: str, userId: str):
+async def save_transcription_chunk(meetingId: str, s3_url: str, transcript: str, userId: str):
     now = datetime.utcnow()
     doc = {
-        "sessionId": sessionId,
+        "meetingId": meetingId,
         "s3_url": s3_url,
         "transcript": transcript,
         "uploadedAt": now,
@@ -222,11 +222,11 @@ async def get_meeting_by_id(meeting_id: str):
     doc = await meetings_collection.find_one({"_id": ObjectId(meeting_id)})
     return doc
 
-async def save_prediction_result(userId: str, sessionId: str, question: str, topic: str, result: str):
+async def save_prediction_result(userId: str, meetingId: str, question: str, topic: str, result: str):
     now = datetime.utcnow()
     doc = {
         "userId": userId,
-        "sessionId": sessionId,
+        "meetingId": meetingId,
         "question": question,
         "topic": topic,
         "result": result,
@@ -236,17 +236,17 @@ async def save_prediction_result(userId: str, sessionId: str, question: str, top
     res = await prediction_collection.insert_one(doc)
     return res.inserted_id
 
-async def   get_predictions(userId: str, sessionId: str = None):
+async def   get_predictions(userId: str, meetingId: str = None):
     now = datetime.utcnow()
     query = {"userId": userId}
-    if sessionId:
-        query["sessionId"] = sessionId
+    if meetingId:
+        query["meetingId"] = meetingId
     cursor = prediction_collection.find(query)
     return await cursor.to_list(length=100)
 
-async def save_suggestion(sessionId: str, userId: str, transcript: str, suggestion: str):
+async def save_suggestion(meetingId: str, userId: str, transcript: str, suggestion: str):
     doc = {
-        "sessionId": sessionId,
+        "meetingId": meetingId,
         "userId": userId,
         "transcript": transcript,
         "suggestion": suggestion,
@@ -261,19 +261,19 @@ def serialize_suggestion(suggestion: dict) -> dict:
     suggestion["_id"] = str(suggestion["_id"])  # Convert ObjectId to string
     return suggestion
 
-async def get_suggestions_by_user_and_session(userId: str, sessionId: str):
-    query = {"userId": userId, "sessionId": sessionId}
+async def get_suggestions_by_user_and_session(userId: str, meetingId: str):
+    query = {"userId": userId, "meetingId": meetingId}
     cursor = suggestion_collection.find(query)
     results = await cursor.to_list(length=None)
     return [serialize_suggestion(s) for s in results]
 
 
 
-async def update_final_summary_and_suggestion(sessionId: str, userId: str, summary: str, suggestion:str):
+async def update_final_summary_and_suggestion(meetingId: str, userId: str, summary: str, suggestion:str):
     now = datetime.utcnow()
     doc = {
         "userId": userId,
-        "sessionId": sessionId,
+        "meetingId": meetingId,
         "summary": summary,
         "suggestion":suggestion,
         "createdAt": now,
@@ -284,8 +284,8 @@ async def update_final_summary_and_suggestion(sessionId: str, userId: str, summa
     )
 
 
-async def get_summary_and_suggestion(sessionId: str, userId: Optional[str] = None):
-    query = {"sessionId": sessionId}
+async def get_summary_and_suggestion(meetingId: str, userId: Optional[str] = None):
+    query = {"meetingId": meetingId}
     if userId:
         query["userId"] = userId
     return await meeting_summry_collection.find_one(query)
@@ -322,33 +322,33 @@ async def get_calendar_events(user_id: str, start_date: datetime = None, end_dat
     cursor = calendar_events_collection.find(query).sort("start_time", 1)
     return await cursor.to_list(length=None)
 
-async def get_calendar_event_by_id(event_id: str, user_id: str):
-    """Get a specific calendar event by event_id and user_id."""
+async def get_calendar_event_by_id(eventId: str, user_id: str):
+    """Get a specific calendar event by eventId and user_id."""
     try:
         doc = await calendar_events_collection.find_one({
-            "event_id": event_id,
+            "eventId": eventId,
             "user_id": user_id
         })
         return doc
     except:
         return None
 
-async def update_calendar_event(event_id: str, update_data: dict):
+async def update_calendar_event(eventId: str, update_data: dict):
     """Update a calendar event."""
     try:
         update_data["updatedAt"] = datetime.utcnow()
         result = await calendar_events_collection.update_one(
-            {"_id": ObjectId(event_id)},
+            {"_id": ObjectId(eventId)},
             {"$set": update_data}
         )
         return result.modified_count > 0
     except:
         return False
 
-async def delete_calendar_event(event_id: str):
+async def delete_calendar_event(eventId: str):
     """Delete a calendar event."""
     try:
-        result = await calendar_events_collection.delete_one({"_id": ObjectId(event_id)})
+        result = await calendar_events_collection.delete_one({"_id": ObjectId(eventId)})
         return result.deleted_count > 0
     except:
         return False

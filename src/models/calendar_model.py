@@ -3,15 +3,15 @@ from typing import List, Optional
 from datetime import datetime
 
 class CalendarEvent(BaseModel):
-    event_id: str
+    eventId: str
     summary: str
     description: Optional[str] = None
     start_time: datetime
     end_time: datetime
     location: Optional[str] = None
     attendees: List[str] = []
-    created_at: datetime
-    updated_at: datetime
+    createdAt: datetime
+    updatedAt: datetime
     user_id: str
 
 class CalendarEventCreate(BaseModel):

@@ -54,15 +54,15 @@ class GoogleCalendarService:
                 end = event['end'].get('dateTime', event['end'].get('date'))
 
                 formatted_event = {
-                    'event_id': event['id'],
+                    'eventId': event['id'],
                     'summary': event.get('summary', 'No Title'),
                     'description': event.get('description', ''),
                     'start_time': start,
                     'end_time': end,
                     'location': event.get('location', ''),
                     'attendees': [attendee['email'] for attendee in event.get('attendees', [])],
-                    'created_at': event.get('created'),
-                    'updated_at': event.get('updated')
+                    'createdAt': event.get('created'),
+                    'updatedAt': event.get('updated')
                 }
                 formatted_events.append(formatted_event)
 
