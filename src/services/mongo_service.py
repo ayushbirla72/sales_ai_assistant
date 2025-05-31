@@ -326,7 +326,7 @@ async def get_calendar_event_by_id(eventId: str, user_id: str):
     """Get a specific calendar event by eventId and user_id."""
     try:
         doc = await calendar_events_collection.find_one({
-            "eventId": eventId,
+            "id": eventId,
             "user_id": user_id
         })
         return doc
