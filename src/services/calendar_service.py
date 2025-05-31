@@ -48,25 +48,8 @@ class GoogleCalendarService:
             events = events_result.get('items', [])
             print(f"Fetched {len(events)} event(s).")
 
-            formatted_events = []
-            for event in events:
-                start = event['start'].get('dateTime', event['start'].get('date'))
-                end = event['end'].get('dateTime', event['end'].get('date'))
-
-                formatted_event = {
-                    'eventId': event['id'],
-                    'summary': event.get('summary', 'No Title'),
-                    'description': event.get('description', ''),
-                    'start_time': start,
-                    'end_time': end,
-                    'location': event.get('location', ''),
-                    'attendees': [attendee['email'] for attendee in event.get('attendees', [])],
-                    'createdAt': event.get('created'),
-                    'updatedAt': event.get('updated')
-                }
-                formatted_events.append(formatted_event)
-
-            return formatted_events
+            # Return events in their original format
+            return events
         except Exception as e:
             print(f"Error fetching calendar events: {str(e)}")
             return []

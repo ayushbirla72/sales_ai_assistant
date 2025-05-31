@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Query, Body
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from src.models.calendar_model import CalendarEvent, CalendarEventCreate, CalendarEventResponse
 from src.services.calendar_service import calendar_service
@@ -122,11 +122,11 @@ async def delete_event(eventId: str, token_data: dict = Depends(verify_token)):
 
 @router.post("/sync-events", response_model=List[CalendarEventResponse])
 async def sync_events_from_body(
-    events: List[CalendarEventCreate] = Body(..., description="List of calendar events to sync"),
+    events: List[Dict[str, Any]] = Body(..., description="List of calendar events to sync"),
     token_data: dict = Depends(verify_token)
 ):
     """Sync calendar events from request body to the database.
-    If an event with the same eventId exists, it will be updated instead of created.
+    If an event with the same id exists, it will be updated instead of created.
     
     Request body example:
     {
@@ -134,10 +134,33 @@ async def sync_events_from_body(
             {
                 "summary": "Team Meeting",
                 "description": "Weekly sync",
-                "start_time": "2024-03-20T10:00:00Z",
-                "end_time": "2024-03-20T11:00:00Z",
+                "start": {
+                    "dateTime": "2024-03-20T10:00:00Z",
+                    "timeZone": "UTC"
+                },
+                "end": {
+                    "dateTime": "2024-03-20T11:00:00Z",
+                    "timeZone": "UTC"
+                },
                 "location": "Conference Room A",
-                "attendees": ["user1@example.com"]
+                "attendees": [
+                    {
+                        "email": "user1@example.com",
+                        "responseStatus": "needsAction"
+                    }
+                ],
+                "conferenceData": {
+                    "conferenceId": "abc-123",
+                    "conferenceSolution": {
+                        "name": "Google Meet"
+                    },
+                    "entryPoints": [
+                        {
+                            "entryPointType": "video",
+                            "uri": "https://meet.google.com/abc-123"
+                        }
+                    ]
+                }
             }
         ]
     }
@@ -152,30 +175,30 @@ async def sync_events_from_body(
 
         synced_events = []
         for event_data in events:
-            # Check if event exists by eventId
-            existing_event = await get_calendar_event_by_id(event_data.eventId, user_id=token_data["user_id"]) if hasattr(event_data, 'eventId') else None
+            # Check if event exists by id
+            existing_event = await get_calendar_event_by_id(event_data["id"], user_id=token_data["user_id"]) if "id" in event_data else None
             
             if existing_event:
                 # Update existing event
                 updated = await update_calendar_event(
                     existing_event["_id"],
                     {
-                        **event_data.dict(),
-                        "updatedAt": datetime.utcnow(),
+                        **event_data,
+                        "updated": datetime.utcnow().isoformat() + 'Z',
                         "user_id": token_data["user_id"]
                     }
                 )
                 if not updated:
-                    raise HTTPException(status_code=500, detail=f"Failed to update event {event_data.eventId}")
+                    raise HTTPException(status_code=500, detail=f"Failed to update event {event_data['id']}")
                 
-                updated_event = await get_calendar_event_by_id(event_data.eventId, user_id=token_data["user_id"])
+                updated_event = await get_calendar_event_by_id(event_data["id"], user_id=token_data["user_id"])
                 synced_events.append(updated_event)
             else:
                 # Create new event
-                event_dict = event_data.dict()
+                event_dict = event_data.copy()
                 event_dict.update({
-                    "createdAt": datetime.utcnow(),
-                    "updatedAt": datetime.utcnow(),
+                    "created": datetime.utcnow().isoformat() + 'Z',
+                    "updated": datetime.utcnow().isoformat() + 'Z',
                     "user_id": token_data["user_id"]
                 })
                 
