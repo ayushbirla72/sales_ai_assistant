@@ -146,6 +146,7 @@ async def sync_events_from_body(
                     existing_event["_id"],
                     {
                         **event_data,
+                        "isMeetingDetailsUploaded": existing_event["isMeetingDetailsUploaded"],
                         "updated": datetime.utcnow().isoformat() + 'Z',
                         "user_id": token_data["user_id"]
                     }
@@ -166,7 +167,7 @@ async def sync_events_from_body(
                     "created": datetime.utcnow().isoformat() + 'Z',
                     "updated": datetime.utcnow().isoformat() + 'Z',
                     "user_id": token_data["user_id"],
-                    
+                    "isMeetingDetailsUploaded": False
                 })
                 
                 eventId = await save_calendar_event(event_dict)

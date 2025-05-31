@@ -336,13 +336,40 @@ async def get_calendar_event_by_id(eventId: str, user_id: str):
 async def update_calendar_event(eventId: str, update_data: dict):
     """Update a calendar event."""
     try:
-        update_data["updatedAt"] = datetime.utcnow()
         result = await calendar_events_collection.update_one(
             {"_id": ObjectId(eventId)},
-            {"$set": update_data}
+            {"$set": {**update_data, "updatedAt": datetime.utcnow()}}
         )
         return result.modified_count > 0
-    except:
+    except Exception as e:
+        print(f"Error updating calendar event: {str(e)}")
+        return False
+
+async def update_meeting_details_uploaded(eventId: str, meetingId: str) -> bool:
+    """
+    Update the isMeetingDetailsUploaded field to True and add meetingId for a calendar event.
+    
+    Args:
+        eventId (str): The ID of the calendar event
+        meetingId (str): The ID of the meeting to associate with the calendar event
+    
+    Returns:
+        bool: True if the update was successful, False otherwise
+    """
+    try:
+        result = await calendar_events_collection.update_one(
+            {"_id": ObjectId(eventId)},
+            {
+                "$set": {
+                    "isMeetingDetailsUploaded": True,
+                    "meetingId": meetingId,
+                    "updatedAt": datetime.utcnow()
+                }
+            }
+        )
+        return result.modified_count > 0
+    except Exception as e:
+        print(f"Error updating meeting details uploaded status: {str(e)}")
         return False
 
 async def delete_calendar_event(eventId: str):
@@ -350,7 +377,8 @@ async def delete_calendar_event(eventId: str):
     try:
         result = await calendar_events_collection.delete_one({"_id": ObjectId(eventId)})
         return result.deleted_count > 0
-    except:
+    except Exception as e:
+        print(f"Error deleting calendar event: {str(e)}")
         return False
 
 async def update_user_profile(email: str, update_data: dict) -> bool:

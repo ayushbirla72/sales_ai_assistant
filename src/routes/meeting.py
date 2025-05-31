@@ -332,6 +332,12 @@ async def create_meeting_api(
     meeting_data = meeting.dict()
     meeting_data["userId"] = userId
     meeting_id = await create_meeting(meeting_data)
+    
+    # If eventId is present, update the calendar event
+    if meeting_data.get("eventId"):
+        from src.services.mongo_service import update_meeting_details_uploaded
+        await update_meeting_details_uploaded(meeting_data["eventId"], str(meeting_id))
+    
     return MeetingResponse(id=str(meeting_id), **meeting_data)
 
 @router.get("/meetings", response_model=List[MeetingResponse])

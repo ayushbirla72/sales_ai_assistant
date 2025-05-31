@@ -61,6 +61,7 @@ class CalendarEvent(BaseModel):
     status: Optional[str] = "confirmed"
     updated: datetime
     user_id: Optional[str] = None
+    isMeetingDetailsUploaded: Optional[bool] = False
 
 class CalendarEventCreate(BaseModel):
     summary: str

@@ -48,6 +48,10 @@ class GoogleCalendarService:
             events = events_result.get('items', [])
             print(f"Fetched {len(events)} event(s).")
 
+            # Add isMeetingDetailsUploaded field to each event
+            for event in events:
+                event['isMeetingDetailsUploaded'] = False
+
             # Return events in their original format
             return events
         except Exception as e:
