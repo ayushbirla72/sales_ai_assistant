@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Query, Body
+from fastapi import APIRouter, HTTPException, Depends, Query, Body, Request
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from src.models.calendar_model import CalendarEvent, CalendarEventCreate, CalendarEventResponse
@@ -122,50 +122,12 @@ async def delete_event(eventId: str, token_data: dict = Depends(verify_token)):
 
 @router.post("/sync-events", response_model=List[CalendarEventResponse])
 async def sync_events_from_body(
-    events: List[Dict[str, Any]] = Body(..., description="List of calendar events to sync"),
+    request: Request,
     token_data: dict = Depends(verify_token)
 ):
-    """Sync calendar events from request body to the database.
-    If an event with the same id exists, it will be updated instead of created.
-    
-    Request body example:
-    {
-        "events": [
-            {
-                "summary": "Team Meeting",
-                "description": "Weekly sync",
-                "start": {
-                    "dateTime": "2024-03-20T10:00:00Z",
-                    "timeZone": "UTC"
-                },
-                "end": {
-                    "dateTime": "2024-03-20T11:00:00Z",
-                    "timeZone": "UTC"
-                },
-                "location": "Conference Room A",
-                "attendees": [
-                    {
-                        "email": "user1@example.com",
-                        "responseStatus": "needsAction"
-                    }
-                ],
-                "conferenceData": {
-                    "conferenceId": "abc-123",
-                    "conferenceSolution": {
-                        "name": "Google Meet"
-                    },
-                    "entryPoints": [
-                        {
-                            "entryPointType": "video",
-                            "uri": "https://meet.google.com/abc-123"
-                        }
-                    ]
-                }
-            }
-        ]
-    }
-    """
     try:
+        body = await request.json()
+        events = body.get("events", [])
         if not events:
             raise HTTPException(status_code=400, detail="No events provided in request body")
 
