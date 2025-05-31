@@ -158,10 +158,15 @@ async def sync_events_from_body(
             else:
                 # Create new event
                 event_dict = event_data.copy()
+                # Rename key from "id" to "eventId" if it exists
+                if "id" in event_dict:
+                    event_dict["eventId"] = event_dict.pop("id")
+
                 event_dict.update({
                     "created": datetime.utcnow().isoformat() + 'Z',
                     "updated": datetime.utcnow().isoformat() + 'Z',
-                    "user_id": token_data["user_id"]
+                    "user_id": token_data["user_id"],
+                    
                 })
                 
                 eventId = await save_calendar_event(event_dict)
