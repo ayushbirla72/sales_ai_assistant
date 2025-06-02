@@ -14,7 +14,8 @@ async def join_external_meeting(
     duration_in_minutes: int = 10,
     userId: str = None,
     meetingId: str = None,
-    max_wait_time_in_minutes: int = 2
+    max_wait_time_in_minutes: int = 2,
+    eventId: str = None
 ) -> Dict:
     """
     Call the external meeting API to join a Google Meet session.
@@ -43,7 +44,8 @@ async def join_external_meeting(
             "DURATION_IN_MINUTES": str(duration_in_minutes),
             "USER_ID": userId,
             "MEETING_ID": meetingId,
-            "MAX_WAIT_TIME_IN_MINUTES": str(max_wait_time_in_minutes)
+            "MAX_WAIT_TIME_IN_MINUTES": str(max_wait_time_in_minutes),
+            "EVENT_ID": eventId
         }
         
         # Construct the full URL with query parameters
@@ -53,7 +55,9 @@ async def join_external_meeting(
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 if response.status == 200:
-                    return await response.json()
+                    response_data = await response.json()
+                    print(response_data)
+                    return response_data
                 else:
                     error_text = await response.text()
                     raise Exception(f"API call failed with status {response.status}: {error_text}")
