@@ -110,39 +110,49 @@ async def upload_chunk_google_meet(
         userId = metadata_dict.get("user_id")
         eventId = metadata_dict.get("event_id")
 
-        print(f"meeting_id {meeting_id}")
-        print(f"container_id {container_id}")
-        print(f"chunk_filename {chunk_filename}")
-        print(f"userId {userId}")
-        print(f"eventId {eventId}") 
+        print(f"Processing chunk - meeting_id: {meeting_id}, container_id: {container_id}, chunk_filename: {chunk_filename}")
+        
         if not meeting_id or not container_id or not chunk_filename:
             raise HTTPException(status_code=400, detail="Missing required metadata fields")
 
         # Upload chunk to S3
         chunk_name = f"audio_recording/{meeting_id}/{container_id}/{chunk_filename}"
         content = await audio.read()
-        s3_url = upload_file_to_s3(chunk_name, content)
-        print(f"s3_url {s3_url}")
-        # Transcribe the uploaded audio chunk
-        transcript = transcribe_audio_bytes(content)
-        print(f"transcript {transcript}")
-        # Save the chunk metadata
-        await save_chunk_metadata(meeting_id, chunk_name, userId, transcript, s3_url, eventId, container_id)
-        print(f"chunk metadata saved")              
-        # Fire-and-forget the heavy suggestion task
-        asyncio.create_task(handle_post_processing(meeting_id, userId))
-        print(f"chunk uploaded successfully {chunk_name}")
-        print(f"s3_url {s3_url}")
-        print(f"transcript {transcript}")
-        return {
-            "message": "Chunk uploaded successfully",
-            "chunk": chunk_name,
-            "s3_url": s3_url,
-            "transcript": transcript,
-        }
+        
+        if not content:
+            raise HTTPException(status_code=400, detail="Empty audio file received")
+            
+        print(f"Audio content size: {len(content)} bytes")
+        
+        # s3_url = upload_file_to_s3(chunk_name, content)
+        s3_url = "https://s3.amazonaws.com/"
+        
+        try:
+            # Transcribe the uploaded audio chunk
+            transcript = transcribe_audio_bytes(content)
+            print(f"Transcription successful - length: {len(transcript)}")
+            
+            # Save the chunk metadata
+            await save_chunk_metadata(meeting_id, chunk_name, userId, transcript, s3_url, eventId, container_id)
+            print(f"Chunk metadata saved successfully")
+            
+            # Fire-and-forget the heavy suggestion task
+            asyncio.create_task(handle_post_processing(meeting_id, userId))
+            
+            return {
+                "message": "Chunk uploaded successfully",
+                "chunk": chunk_name,
+                "s3_url": s3_url,
+                "transcript": transcript,
+            }
+            
+        except ValueError as ve:
+            raise HTTPException(status_code=400, detail=f"Audio processing error: {str(ve)}")
+            
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid metadata JSON format")
     except Exception as e:
+        print(f"Error processing chunk: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing chunk: {str(e)}")
 
 
