@@ -111,6 +111,7 @@ async def upload_chunk_google_meet(
         eventId = metadata_dict.get("event_id")
 
         print(f"Processing chunk - meeting_id: {meeting_id}, container_id: {container_id}, chunk_filename: {chunk_filename}")
+        print(f"Audio file content type: {audio.content_type}")
         
         if not meeting_id or not container_id or not chunk_filename:
             raise HTTPException(status_code=400, detail="Missing required metadata fields")
@@ -124,11 +125,21 @@ async def upload_chunk_google_meet(
             
         print(f"Audio content size: {len(content)} bytes")
         
+        # Save the raw audio temporarily for debugging if needed
+        debug_path = f"debug_{chunk_filename}"
+        try:
+            with open(debug_path, "wb") as f:
+                f.write(content)
+            print(f"Saved debug file to: {debug_path}")
+        except Exception as e:
+            print(f"Failed to save debug file: {str(e)}")
+        
         # s3_url = upload_file_to_s3(chunk_name, content)
         s3_url = "https://s3.amazonaws.com/"
         
         try:
             # Transcribe the uploaded audio chunk
+            print("Starting transcription...")
             transcript = transcribe_audio_bytes(content)
             print(f"Transcription successful - length: {len(transcript)}")
             
@@ -139,6 +150,13 @@ async def upload_chunk_google_meet(
             # Fire-and-forget the heavy suggestion task
             asyncio.create_task(handle_post_processing(meeting_id, userId))
             
+            # Clean up debug file
+            try:
+                if os.path.exists(debug_path):
+                    os.remove(debug_path)
+            except Exception as e:
+                print(f"Failed to remove debug file: {str(e)}")
+            
             return {
                 "message": "Chunk uploaded successfully",
                 "chunk": chunk_name,
@@ -147,6 +165,7 @@ async def upload_chunk_google_meet(
             }
             
         except ValueError as ve:
+            print(f"Audio processing error: {str(ve)}")
             raise HTTPException(status_code=400, detail=f"Audio processing error: {str(ve)}")
             
     except json.JSONDecodeError:
