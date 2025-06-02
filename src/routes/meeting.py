@@ -4,11 +4,16 @@ import uuid, tempfile, os
 import asyncio
 import json
 from collections import defaultdict
+from datetime import datetime
 
 from src.services.prediction_models_service import run_instruction
 from src.services.speaker_identification import load_reference_embedding, process_segments, run_diarization
 from src.services.s3_service import upload_file_to_s3, download_file_from_s3
-from src.services.mongo_service import get_salesperson_sample, save_chunk_metadata, get_chunk_list, save_final_audio, save_suggestion, update_final_summary_and_suggestion
+from src.services.mongo_service import (
+    get_salesperson_sample, save_chunk_metadata, get_chunk_list, save_final_audio, 
+    save_suggestion, update_final_summary_and_suggestion, get_calendar_event_by_id,
+    update_calendar_event
+)
 from src.services.audio_merge_service import merge_audio_chunks
 from src.services.whisper_service import transcribe_audio
 from src.services.diarization_service import diarize_audio
@@ -358,6 +363,47 @@ async def get_meeting_by_id_api(
         raise HTTPException(status_code=404, detail="Meeting not found")
     return meeting_doc_to_response(doc)
 
+@router.put("/meetings/auto-join/{eventId}")
+async def update_auto_join(
+    eventId: str,
+    auto_join: bool = Body(..., embed=True),
+    token_data: dict = Depends(verify_token)
+):
+    """
+    Update the auto-join status for a calendar event.
+    
+    Args:
+        eventId (str): The ID of the calendar event
+        auto_join (bool): Whether to auto-join the meeting
+        token_data (dict): Token data containing user information
+    
+    Returns:
+        dict: Updated calendar event
+    """
+    try:
+        # Get the calendar event
+        event = await get_calendar_event_by_id(eventId, token_data["user_id"])
+        if not event:
+            raise HTTPException(status_code=404, detail="Calendar event not found")
+        
+        # Update the auto-join status
+        updated = await update_calendar_event(
+            event["_id"],
+            {
+                "autoJoin": auto_join,
+                "updated": datetime.utcnow().isoformat() + 'Z'
+            }
+        )
+        
+        if not updated:
+            raise HTTPException(status_code=500, detail="Failed to update auto-join status")
+        
+        # Get the updated event
+        updated_event = await get_calendar_event_by_id(eventId, token_data["user_id"])
+        return updated_event
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/some-endpoint")
 async def some_endpoint(token_data: dict = Depends(verify_token)):

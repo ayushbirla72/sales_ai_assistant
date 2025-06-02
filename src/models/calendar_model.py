@@ -63,6 +63,7 @@ class CalendarEvent(BaseModel):
     updated: datetime
     user_id: Optional[str] = None
     isMeetingDetailsUploaded: Optional[bool] = False
+    autoJoin: Optional[bool] = True
 
 class CalendarEventCreate(BaseModel):
     summary: str
