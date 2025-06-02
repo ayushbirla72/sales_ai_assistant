@@ -156,7 +156,7 @@ async def sync_events_from_body(
                 
                 updated_event = await get_calendar_event_by_id(event_data["id"], user_id=token_data["user_id"])
                 # Add MongoDB _id to the response
-                updated_event["_id"] = str(updated_event["_id"])
+                updated_event["eventId"] = str(updated_event["_id"])
                 synced_events.append(updated_event)
             else:
                 # Create new event
@@ -170,7 +170,7 @@ async def sync_events_from_body(
                 
                 eventId = await save_calendar_event(event_dict)
                 # Add MongoDB _id to the response
-                event_dict["_id"] = str(eventId)
+                event_dict["eventId"] = str(eventId)
                 synced_events.append(event_dict)
         
         return synced_events
