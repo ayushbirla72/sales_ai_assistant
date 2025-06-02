@@ -110,7 +110,11 @@ async def upload_chunk_google_meet(
         userId = metadata_dict.get("user_id")
         eventId = metadata_dict.get("event_id")
 
-        
+        print(f"meeting_id {meeting_id}")
+        print(f"container_id {container_id}")
+        print(f"chunk_filename {chunk_filename}")
+        print(f"userId {userId}")
+        print(f"eventId {eventId}") 
         if not meeting_id or not container_id or not chunk_filename:
             raise HTTPException(status_code=400, detail="Missing required metadata fields")
 
@@ -118,13 +122,13 @@ async def upload_chunk_google_meet(
         chunk_name = f"audio_recording/{meeting_id}/{container_id}/{chunk_filename}"
         content = await audio.read()
         s3_url = upload_file_to_s3(chunk_name, content)
-
+        print(f"s3_url {s3_url}")
         # Transcribe the uploaded audio chunk
         transcript = transcribe_audio_bytes(content)
-
+        print(f"transcript {transcript}")
         # Save the chunk metadata
         await save_chunk_metadata(meeting_id, chunk_name, userId, transcript, s3_url, eventId, container_id)
-
+        print(f"chunk metadata saved")              
         # Fire-and-forget the heavy suggestion task
         asyncio.create_task(handle_post_processing(meeting_id, userId))
         print(f"chunk uploaded successfully {chunk_name}")

@@ -15,7 +15,7 @@ app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
 app.include_router(suggestion_router, prefix="/api/sg")
 # app.include_router(chatbot, prefix="/api/chat")
 app.include_router(calendar_router, prefix="/api/calendar", tags=["Calendar"])
-app.include_router(meeting_router, prefix="/api/meetings", tags=["Meetings"])
+app.include_router(meeting_router, prefix="/api/meet", tags=["Meetings"])
 
 @app.on_event("startup")
 async def startup_event():
