@@ -155,14 +155,12 @@ async def sync_events_from_body(
                     raise HTTPException(status_code=500, detail=f"Failed to update event {event_data['id']}")
                 
                 updated_event = await get_calendar_event_by_id(event_data["id"], user_id=token_data["user_id"])
+                # Add MongoDB _id to the response
+                updated_event["_id"] = str(updated_event["_id"])
                 synced_events.append(updated_event)
             else:
                 # Create new event
                 event_dict = event_data.copy()
-                # Rename key from "id" to "eventId" if it exists
-                # if "id" in event_dict:
-                #     event_dict["eventId"] = event_dict.pop("id")
-
                 event_dict.update({
                     "created": datetime.utcnow().isoformat() + 'Z',
                     "updated": datetime.utcnow().isoformat() + 'Z',
@@ -171,7 +169,8 @@ async def sync_events_from_body(
                 })
                 
                 eventId = await save_calendar_event(event_dict)
-                event_dict["_id"] = eventId
+                # Add MongoDB _id to the response
+                event_dict["_id"] = str(eventId)
                 synced_events.append(event_dict)
         
         return synced_events
