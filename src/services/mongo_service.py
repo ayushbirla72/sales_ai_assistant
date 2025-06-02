@@ -20,10 +20,9 @@ meeting_summry_collection = db["meetingSummrys"]
 calendar_events_collection = db["calendarEvents"]
 
 # Save chunk metadata
-async def save_chunk_metadata(session_id: str, chunk_name: str, userId: str, transcript: str, s3_url: str):
+async def save_chunk_metadata(meetingId: str, chunk_name: str, userId: str, transcript: str, s3_url: str , eventId: str, container_id: str):
     now = datetime.utcnow()
     doc = {
-        "meetingId": session_id,
         "s3_url": s3_url,
         "transcript": transcript,
         "uploadedAt": now,
@@ -31,9 +30,11 @@ async def save_chunk_metadata(session_id: str, chunk_name: str, userId: str, tra
         "updatedAt": now,
         "userId": userId,
         "chunk_name": chunk_name,
+        "eventId": eventId,
+        "container_id": container_id
     }
     await chunks_col.update_one(
-        {"meetingId": session_id, "userId": userId},
+        {"_id": ObjectId(meetingId)},
         {
             "$push": {"chunks": doc},
             "$set": {"updatedAt": now},

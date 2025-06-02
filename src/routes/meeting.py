@@ -60,7 +60,7 @@ async def upload_salesperson_audio(
     }
 
 
-@router.post("/upload-chunk")
+@router.post("/audio-chunk")
 async def upload_chunk(
     file: UploadFile = File(...),
     meetingId: str = Form(...),
@@ -68,6 +68,8 @@ async def upload_chunk(
     token_data: dict = Depends(verify_token)
 ):
     userId = token_data["user_id"]
+    eventId = '665d63636363636363636363'
+    container_id = '1234567890'
     if not meetingId or not file.filename:
         raise HTTPException(status_code=400, detail="Missing meetingId or file")
 
@@ -80,7 +82,7 @@ async def upload_chunk(
     transcript = transcribe_audio_bytes(content)
 
     # Save the chunk metadata
-    await save_chunk_metadata(meetingId, chunk_name, userId, transcript, s3_url)
+    await save_chunk_metadata(meetingId, chunk_name, userId, transcript, s3_url, eventId, container_id)
 
     # ✅ Fire-and-forget the heavy suggestion task
     asyncio.create_task(handle_post_processing(meetingId, userId))
@@ -106,6 +108,8 @@ async def upload_chunk_google_meet(
         container_id = metadata_dict.get("container_id")
         chunk_filename = metadata_dict.get("chunk_filename")
         userId = metadata_dict.get("user_id")
+        eventId = metadata_dict.get("event_id")
+
         
         if not meeting_id or not container_id or not chunk_filename:
             raise HTTPException(status_code=400, detail="Missing required metadata fields")
@@ -119,7 +123,7 @@ async def upload_chunk_google_meet(
         transcript = transcribe_audio_bytes(content)
 
         # Save the chunk metadata
-        await save_chunk_metadata(meeting_id, chunk_name, userId, transcript, s3_url)
+        await save_chunk_metadata(meeting_id, chunk_name, userId, transcript, s3_url, eventId, container_id)
 
         # Fire-and-forget the heavy suggestion task
         asyncio.create_task(handle_post_processing(meeting_id, userId))
