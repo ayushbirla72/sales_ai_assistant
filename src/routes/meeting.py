@@ -127,7 +127,9 @@ async def upload_chunk_google_meet(
 
         # Fire-and-forget the heavy suggestion task
         asyncio.create_task(handle_post_processing(meeting_id, userId))
-
+        print(f"chunk uploaded successfully {chunk_name}")
+        print(f"s3_url {s3_url}")
+        print(f"transcript {transcript}")
         return {
             "message": "Chunk uploaded successfully",
             "chunk": chunk_name,
