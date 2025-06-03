@@ -200,7 +200,7 @@ async def get_today_started_meetings(token_data: dict = Depends(verify_token)):
             status="start",
             start_date=today
         )
-        
+        print(f"events........ {events}")
         return events
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -222,7 +222,7 @@ async def get_completed_meetings(token_data: dict = Depends(verify_token)):
             user_id=token_data["user_id"],
             current_time=current_time
         )
-        
+        print(f"events {events}")
         return events
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) 
