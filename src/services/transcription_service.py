@@ -5,6 +5,7 @@ import soundfile as sf
 import numpy as np
 import io
 import wave
+from pydub import AudioSegment
 import struct
 
 # Load the model once
