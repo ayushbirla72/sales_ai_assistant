@@ -31,10 +31,11 @@ async def save_chunk_metadata(meetingId: str, chunk_name: str, userId: str, tran
         "userId": userId,
         "chunk_name": chunk_name,
         "eventId": eventId,
-        "container_id": container_id
+        "container_id": container_id,
+        "meetingId": meetingId
     }
     await chunks_col.update_one(
-        {"_id": ObjectId(meetingId)},
+        {"meetingId": meetingId},
         {
             "$push": {"chunks": doc},
             "$set": {"updatedAt": now},
@@ -44,16 +45,16 @@ async def save_chunk_metadata(meetingId: str, chunk_name: str, userId: str, tran
     )
 
 # Get chunk list
-async def get_chunk_list(session_id: str):
-    doc = await chunks_col.find_one({"meetingId": session_id})
+async def get_chunk_list(meetingId: str):
+    doc = await chunks_col.find_one({"meetingId": meetingId})
     print(f"chunksss {doc}")
     return doc["chunks"] if doc else []
 
 # Save final audio
-async def save_final_audio(session_id: str, s3_url: str, results: list, userId: str):
+async def save_final_audio(meetingId: str, s3_url: str, results: list, userId: str):
     now = datetime.utcnow()
     doc = {
-        "meetingId": session_id,
+        "meetingId": meetingId,
         "s3_url": s3_url,
         "results": results,
         "userId": userId,
