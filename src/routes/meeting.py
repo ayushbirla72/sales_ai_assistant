@@ -112,6 +112,7 @@ async def upload_chunk_google_meet(
 
         print(f"Processing chunk - meeting_id: {meeting_id}, container_id: {container_id}, chunk_filename: {chunk_filename}")
         print(f"Audio file content type: {audio.content_type}")
+        print(f"Audio file headers: {audio.headers}")
         
         if not meeting_id or not container_id or not chunk_filename:
             raise HTTPException(status_code=400, detail="Missing required metadata fields")
@@ -131,6 +132,15 @@ async def upload_chunk_google_meet(
             with open(debug_path, "wb") as f:
                 f.write(content)
             print(f"Saved debug file to: {debug_path}")
+            
+            # Try to read the file with soundfile to validate it
+            import soundfile as sf
+            try:
+                data, samplerate = sf.read(debug_path)
+                print(f"Successfully read audio file - Sample rate: {samplerate}Hz, Shape: {data.shape}")
+            except Exception as e:
+                print(f"Warning: Could not read audio file with soundfile: {str(e)}")
+                
         except Exception as e:
             print(f"Failed to save debug file: {str(e)}")
         

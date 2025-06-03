@@ -1,7 +1,8 @@
 from faster_whisper import WhisperModel
 import tempfile
 import os
-from pydub import AudioSegment
+import soundfile as sf
+import numpy as np
 import io
 import wave
 import struct
@@ -29,29 +30,47 @@ def convert_to_wav(audio_bytes):
 
 def transcribe_audio_bytes(audio_bytes: bytes) -> str:
     try:
-        # Check if it's already a valid WAV file
-        if not is_valid_wav(audio_bytes):
-            print("Converting audio to WAV format...")
-            audio_bytes = convert_to_wav(audio_bytes)
-        
-        # Use delete=False to avoid PermissionError on Windows
+        # Create a temporary file to store the audio data
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             tmp.write(audio_bytes)
             tmp.flush()
             tmp_path = tmp.name
 
         try:
-            print(f"Transcribing audio file: {tmp_path}")
-            segments, _ = model.transcribe(tmp_path)
+            # Try to read the audio file with soundfile
+            print(f"Reading audio file: {tmp_path}")
+            data, samplerate = sf.read(tmp_path)
+            
+            # Convert to mono if stereo
+            if len(data.shape) > 1:
+                data = data.mean(axis=1)
+            
+            # Resample to 16kHz if needed
+            if samplerate != 16000:
+                print(f"Resampling from {samplerate}Hz to 16000Hz")
+                from scipy import signal
+                samples = len(data)
+                new_samples = int(samples * 16000 / samplerate)
+                data = signal.resample(data, new_samples)
+                samplerate = 16000
+            
+            # Save the processed audio
+            processed_path = tmp_path + "_processed.wav"
+            sf.write(processed_path, data, samplerate)
+            
+            print(f"Transcribing processed audio file: {processed_path}")
+            segments, _ = model.transcribe(processed_path)
             full_text = ""
             for segment in segments:
                 full_text += segment.text.strip() + " "
             return full_text.strip()
 
         finally:
-            # Manually delete the temp file
+            # Clean up temporary files
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
+            if os.path.exists(processed_path):
+                os.remove(processed_path)
                 
     except Exception as e:
         print(f"Error in transcribe_audio_bytes: {str(e)}")
