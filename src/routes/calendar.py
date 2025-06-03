@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Query, Body, Request
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from src.models.calendar_model import CalendarEvent, CalendarEventCreate, CalendarEventResponse
 from src.services.calendar_service import calendar_service
 from src.services.mongo_service import (
@@ -9,7 +9,9 @@ from src.services.mongo_service import (
     get_calendar_event_by_id,
     update_calendar_event,
     delete_calendar_event,
-    get_user_details
+    get_user_details,
+    get_calendar_events_by_status,
+    get_calendar_events_by_end_time
 )
 from src.routes.auth import verify_token
 from pydantic import BaseModel
@@ -177,5 +179,50 @@ async def sync_events_from_body(
         return synced_events
     except HTTPException as he:
         raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/today-started-meetings", response_model=List[CalendarEventResponse])
+async def get_today_started_meetings(token_data: dict = Depends(verify_token)):
+    """
+    Get all meetings that have started today (status = 'start').
+    
+    Returns:
+        List[CalendarEventResponse]: List of started meetings
+    """
+    try:
+        # Get today's date in UTC
+        today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Get events with status 'start'
+        events = await get_calendar_events_by_status(
+            user_id=token_data["user_id"],
+            status="start",
+            start_date=today
+        )
+        
+        return events
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/completed-meetings", response_model=List[CalendarEventResponse])
+async def get_completed_meetings(token_data: dict = Depends(verify_token)):
+    """
+    Get all completed meetings where the end time is greater than the current time.
+    
+    Returns:
+        List[CalendarEventResponse]: List of completed meetings
+    """
+    try:
+        # Get current time in UTC
+        current_time = datetime.now(timezone.utc)
+        
+        # Get events with end time greater than current time
+        events = await get_calendar_events_by_end_time(
+            user_id=token_data["user_id"],
+            current_time=current_time
+        )
+        
+        return events
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) 

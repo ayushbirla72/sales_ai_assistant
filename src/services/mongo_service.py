@@ -457,3 +457,45 @@ async def update_user_google_info(email: str, google_data: dict) -> bool:
     except Exception as e:
         print(f"Error updating Google info: {str(e)}")
         return False
+
+async def get_calendar_events_by_status(user_id: str, status: str, start_date: datetime = None):
+    """
+    Get calendar events by status and optional start date.
+    
+    Args:
+        user_id (str): User ID
+        status (str): Event status to filter by
+        start_date (datetime, optional): Start date to filter events from
+        
+    Returns:
+        List[dict]: List of calendar events
+    """
+    query = {
+        "user_id": user_id,
+        "status": status
+    }
+    
+    if start_date:
+        query["start.dateTime"] = {"$gte": start_date.isoformat()}
+    
+    cursor = calendar_events_collection.find(query).sort("start.dateTime", DESCENDING)
+    return await cursor.to_list(length=None)
+
+async def get_calendar_events_by_end_time(user_id: str, current_time: datetime):
+    """
+    Get calendar events where end time is greater than current time.
+    
+    Args:
+        user_id (str): User ID
+        current_time (datetime): Current time to compare against
+        
+    Returns:
+        List[dict]: List of calendar events
+    """
+    query = {
+        "user_id": user_id,
+        "end.dateTime": {"$gt": current_time.isoformat()},
+    }
+    
+    cursor = calendar_events_collection.find(query).sort("end.dateTime", DESCENDING)
+    return await cursor.to_list(length=None)
