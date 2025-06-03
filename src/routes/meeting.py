@@ -161,7 +161,8 @@ async def handle_post_processing(meetingId: str, userId: str):
 
         # Run LLM
         instruction = f"Suggest improvements for this meeting segment. Meeting Description: {description}. Product Details: {product_details}."
-        suggestions = run_instruction(instruction, f"Transcript:\n{full_transcript}")
+        # suggestions = run_instruction(instruction, f"Transcript:\n{full_transcript}")
+        suggestions = "test"
         print(f"suggestion result is ............. {suggestions}")
         # Save suggestions
         await save_suggestion(meetingId, userId, transcript=full_transcript, suggestion=suggestions)

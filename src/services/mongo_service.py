@@ -47,7 +47,7 @@ async def save_chunk_metadata(meetingId: str, chunk_name: str, userId: str, tran
 # Get chunk list
 async def get_chunk_list(meetingId: str):
     doc = await chunks_col.find_one({"meetingId": meetingId})
-    print(f"chunksss {doc}")
+    # print(f"chunksss {doc}")
     return doc["chunks"] if doc else []
 
 # Save final audio
