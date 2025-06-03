@@ -476,7 +476,9 @@ async def get_calendar_events_by_status(user_id: str, status: str, start_date: d
     }
     
     if start_date:
-        query["start.dateTime"] = {"$gte": start_date.isoformat()}
+        # Convert start_date to ISO format string for comparison
+        start_date_str = start_date.isoformat()
+        query["start.dateTime"] = {"$gte": start_date_str}
     
     cursor = calendar_events_collection.find(query).sort("start.dateTime", DESCENDING)
     return await cursor.to_list(length=None)
@@ -492,9 +494,12 @@ async def get_calendar_events_by_end_time(user_id: str, current_time: datetime):
     Returns:
         List[dict]: List of calendar events
     """
+    # Convert current_time to ISO format string for comparison
+    current_time_str = current_time.isoformat()
+    
     query = {
         "user_id": user_id,
-        "end.dateTime": {"$gt": current_time.isoformat()},
+        "end.dateTime": {"$gt": current_time_str}
     }
     
     cursor = calendar_events_collection.find(query).sort("end.dateTime", DESCENDING)
