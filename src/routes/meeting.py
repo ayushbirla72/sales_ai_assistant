@@ -1,16 +1,18 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body, Depends
 import uuid, tempfile, os
 import asyncio
 import json
 from collections import defaultdict
 from datetime import datetime
+from enum import Enum
+from pydantic import BaseModel
 
 from src.services.prediction_models_service import run_instruction
 from src.services.speaker_identification import load_reference_embedding, process_segments, run_diarization
 from src.services.s3_service import upload_file_to_s3, download_file_from_s3
 from src.services.mongo_service import (
-    get_salesperson_sample, save_chunk_metadata, get_chunk_list, save_final_audio, 
+    get_calendar_event_by_id_only, get_salesperson_sample, save_chunk_metadata, get_chunk_list, save_final_audio, 
     save_suggestion, update_final_summary_and_suggestion, get_calendar_event_by_id,
     update_calendar_event
 )
@@ -30,7 +32,23 @@ from src.routes.auth import verify_token
 
 router = APIRouter()
 
+class MeetingStatus(str, Enum):
+    SCHEDULED = "scheduled"
+    START = "start"
+    PROGRESS = "progress"
+    TRANSCRIPTION = "transcription"
+    CANCELLED = "cancelled"
+    FAILED = "failed"
+    COMPLETED = "completed"
 
+class MeetingStatusUpdate(BaseModel):
+    status: MeetingStatus
+    meeting_id: str
+    event_id: str
+    user_id: str
+    container_id: str
+    message: Optional[str] = None
+    timestamp: Optional[str] = None
 
 @router.post("/upload-salesperson-audio")
 async def upload_salesperson_audio(
@@ -422,3 +440,164 @@ async def some_endpoint(token_data: dict = Depends(verify_token)):
     email = token_data["email"]
     user_id = token_data["user_id"]
     # ... rest of your code
+
+@router.post("/finalize-session-with-audio")
+async def finalize_session_with_audio(
+    file: UploadFile = File(...),
+    meetingId: str = Form(...),
+    eventId: str = Form(...),
+    containerId: str = Form(...),
+    userId: str = Form(...),
+):
+    """
+    Finalize a meeting session with an audio file.
+    All processing is done in the background.
+    
+    Args:
+        file (UploadFile): The audio file to process
+        meetingId (str): ID of the meeting
+        eventId (str): ID of the event
+        containerId (str): ID of the container
+        userId (str): ID of the user
+        
+    Returns:
+        dict: Success message
+    """
+    if not all([file, meetingId, eventId, containerId, userId]):
+        raise HTTPException(status_code=400, detail="Missing required parameters")
+
+    # Start background processing
+    asyncio.create_task(process_finalize_session(
+        file=file,
+        meetingId=meetingId,
+        eventId=eventId,
+        containerId=containerId,
+        userId=userId
+    ))
+    
+    return {
+        "message": "Session finalization started successfully",
+        "meetingId": meetingId
+    }
+
+async def process_finalize_session(
+    file: UploadFile,
+    meetingId: str,
+    eventId: str,
+    containerId: str,
+    userId: str
+):
+    """
+    Background process for finalizing session.
+    """
+    temp_dir = tempfile.mkdtemp()
+    final_path = None
+    sample_path = None
+    
+    try:
+        # Read the audio file
+        audio_bytes = await file.read()
+        
+        # Save the audio file to temp directory
+        final_path = os.path.join(temp_dir, f"{meetingId}_{file.filename}")
+        with open(final_path, "wb") as f:
+            f.write(audio_bytes)
+        
+        # Upload the audio file to S3
+        s3_key = f"final_recording/{meetingId}/{containerId}/{file.filename}"
+        s3_url = upload_file_to_s3(s3_key, audio_bytes)
+
+        # Fetch salesperson sample from DB
+        sample_url = await get_salesperson_sample(userId)
+        s3_sample_key = extract_filename_from_s3_url(sample_url["s3_url"]) 
+        
+        # Download and save salesperson sample locally
+        sample_path = os.path.join(temp_dir, os.path.basename(s3_sample_key))
+
+        sample_file_data = download_file_from_s3(s3_sample_key)
+        with open(sample_path, "wb") as sf:
+            sf.write(sample_file_data)
+
+        # Load reference embedding from local sample file
+        ref_embedding = load_reference_embedding(sample_path)
+
+        # Run diarization and process
+        diarization = run_diarization(final_path)
+        results = process_segments(diarization, final_path, ref_embedding)
+
+        # Save the final audio metadata
+        await save_final_audio(meetingId, s3_url, results, userId)
+        
+        # Run post-processing in background
+        asyncio.create_task(handle_finalize_post_processing(meetingId, userId, results))
+        
+        # Update calendar event if needed
+        calendar_event = await get_calendar_event_by_id_only(eventId)
+        if calendar_event:
+            await update_calendar_event(calendar_event["_id"], {
+                "meetingId": meetingId,
+                "status": "completed",
+            })
+            
+    except Exception as e:
+        print(f"Error in background processing: {str(e)}")
+    finally:
+        # Clean up temporary files
+        if final_path and os.path.exists(final_path):
+            os.remove(final_path)
+        if sample_path and os.path.exists(sample_path):
+            os.remove(sample_path)
+        if os.path.exists(temp_dir):
+            os.rmdir(temp_dir)
+
+@router.post("/update-meeting-status")
+async def update_meeting_status(
+    data: MeetingStatusUpdate
+):
+    """
+    Update the status of a meeting.
+    
+    Args:
+        data (MeetingStatusUpdate): Meeting status update data containing:
+            - status (MeetingStatus): New status of the meeting
+            - meeting_id (str): ID of the meeting
+            - event_id (str): ID of the calendar event
+            - user_id (str): ID of the user
+            - container_id (str): ID of the container
+            - message (str, optional): Additional message
+            - timestamp (str, optional): Timestamp of the update
+            
+    Returns:
+        dict: Success message
+    """
+    try:
+        # Get the calendar event
+        calendar_event = await get_calendar_event_by_id_only(data.event_id)
+        if not calendar_event:
+            raise HTTPException(status_code=404, detail="Calendar event not found")
+
+        # Update the calendar event with new status
+        update_data = {
+            "status": data.status,
+        }
+        
+        if data.message:
+            update_data["message"] = data.message
+
+        await update_calendar_event(calendar_event["_id"], update_data)
+
+        return {
+            "message": "Meeting status updated successfully",
+            "event_id": data.event_id,
+            "meeting_id": data.meeting_id,
+            "status": data.status,
+            "container_id": data.container_id
+        }
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error updating meeting status: {str(e)}"
+        )

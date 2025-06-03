@@ -335,6 +335,17 @@ async def get_calendar_event_by_id(eventId: str, user_id: str):
     except:
         return None
 
+async def get_calendar_event_by_id_only(eventId: str):
+    """Get a specific calendar event by eventId and user_id."""
+    try:
+        doc = await calendar_events_collection.find_one({
+            "_id": ObjectId(eventId)
+        })
+        return doc
+    except:
+        return None
+
+
 async def update_calendar_event(eventId: str, update_data: dict):
     """Update a calendar event."""
     try:

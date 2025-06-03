@@ -3,7 +3,7 @@ import tempfile
 import os
 
 # Load the model once
-model = WhisperModel("base", compute_type="int8")
+model = WhisperModel("large", compute_type="int8")
 
 def transcribe_audio_bytes(audio_bytes: bytes) -> str:
     # Use delete=False to avoid PermissionError on Windows
