@@ -39,7 +39,7 @@ class Reminders(BaseModel):
     useDefault: Optional[bool] = True
 
 class CalendarEvent(BaseModel):
-    eventId: str
+    eventId: Optional[str] = None
     id: str
     summary: str
     description: Optional[str] = None
