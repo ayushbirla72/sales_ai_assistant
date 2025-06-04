@@ -256,17 +256,19 @@ async def finalize_session(
 
         # Upload final audio to S3
         s3_key = f"final_recording/{meetingId}/{eventId}/final.wav"
-        s3_url = upload_file_to_s3(s3_key, audio_bytes)
+        # s3_url = upload_file_to_s3(s3_key, audio_bytes)
+        s3_url = "https://s3.amazonaws.com/"
 
         # Fetch salesperson sample from DB
-        sample_url = await get_salesperson_sample(userId)
-        s3_sample_key = extract_filename_from_s3_url(sample_url["s3_url"])
+        # sample_url = await get_salesperson_sample(userId)
+        # s3_sample_key = extract_filename_from_s3_url(sample_url["s3_url"])
 
-        # Download and save salesperson sample locally
-        sample_path = os.path.join(temp_dir, os.path.basename(s3_sample_key))
-        sample_file_data = download_file_from_s3(s3_sample_key)
-        with open(sample_path, "wb") as sf:
-            sf.write(sample_file_data)
+        # # Download and save salesperson sample locally
+        # sample_path = os.path.join(temp_dir, os.path.basename(s3_sample_key))
+        # sample_file_data = download_file_from_s3(s3_sample_key)
+        # with open(sample_path, "wb") as sf:
+        #     sf.write(sample_file_data)
+        sample_path = "../host2.wav"
 
         # Load reference embedding from local sample file
         ref_embedding = load_reference_embedding(sample_path)
