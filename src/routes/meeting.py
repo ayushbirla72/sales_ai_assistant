@@ -338,14 +338,14 @@ async def handle_finalize_post_processing(meetingId: str, userId: str, transcrip
         # --- Step 3: Prepare LLM Instructions ---
         summary_instruction = (
             f"Summarize the following meeting in a concise paragraph.\n"
-            f"Meeting Description: {description}\n"
-            f"Product Details: {product_details}"
+            # f"Meeting Description: {description}\n"
+            # f"Product Details: {product_details}"
         )
 
         suggestion_instruction = (
             f"Suggest improvements based on the following meeting.\n"
-            f"Meeting Description: {description}\n"
-            f"Product Details: {product_details}"
+            # f"Meeting Description: {description}\n"
+            # f"Product Details: {product_details}"
         )
 
         # --- Step 4: Call LLM ---
