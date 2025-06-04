@@ -22,6 +22,7 @@ async def check_and_join_meetings():
         try:
             # Get current time
             now = datetime.utcnow()
+            print(f"now scheduler running {now}")
             
             # Find events that:
             # 1. Are starting within the next minute
