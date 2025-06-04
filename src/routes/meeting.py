@@ -82,11 +82,11 @@ async def upload_salesperson_audio(
 async def upload_chunk(
     file: UploadFile = File(...),
     meetingId: str = Form(...),
-    # userId: str = Form(...),
+    eventId: str = Form(...),
     token_data: dict = Depends(verify_token)
 ):
     userId = token_data["user_id"]
-    eventId = '665d63636363636363636363'
+    # eventId = '665d63636363636363636363'
     container_id = '1234567890'
     if not meetingId or not file.filename:
         raise HTTPException(status_code=400, detail="Missing meetingId or file")

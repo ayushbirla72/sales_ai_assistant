@@ -42,6 +42,7 @@ class CalendarEvent(BaseModel):
     eventId: Optional[str] = None
     id: Optional[str] = None
     summary: str
+    meetingId: Optional[str] = None
     description: Optional[str] = None
     start: DateTime
     end: DateTime
