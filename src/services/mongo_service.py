@@ -64,6 +64,10 @@ async def save_final_audio(meetingId: str, s3_url: str, results: list, userId: s
     result = await final_col.insert_one(doc)
     return result.inserted_id
 
+async def get_final_audio(meetingId: str):
+    doc = await final_col.find_one({"meetingId": meetingId})
+    return doc
+
 # Save salesperson sample
 async def save_salesperson_sample(filename: str, s3_url: str, userId: str):
     now = datetime.utcnow()

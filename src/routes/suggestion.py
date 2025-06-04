@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body, Query, Depends
 from typing import List
 from bson import ObjectId
-from src.services.mongo_service import get_summary_and_suggestion, save_suggestion, get_suggestions_by_user_and_session
+from src.services.mongo_service import get_final_audio, get_summary_and_suggestion, save_suggestion, get_suggestions_by_user_and_session
 from src.routes.auth import verify_token
 
 router = APIRouter()
@@ -32,17 +32,19 @@ async def get_suggestions(
 async def get_meeting_summary(
     meetingId: str = Query(...),
     userId: str = Query(None),
-    token_data: dict = Depends(verify_token)
+    # token_data: dict = Depends(verify_token)
 ):
     document = await get_summary_and_suggestion(meetingId, userId)
     if not document:
         raise HTTPException(status_code=404, detail="Summary not found")
 
+    result = await get_final_audio(meetingId)
     return {
         "meetingId": document["meetingId"],
         "userId": document["userId"],
         "summary": document["summary"],
         "suggestion": document["suggestion"],
         "createdAt": document["createdAt"],
-        "updatedAt": document["updatedAt"]
+        "updatedAt": document["updatedAt"],
+        "result": result["result"]
     }
