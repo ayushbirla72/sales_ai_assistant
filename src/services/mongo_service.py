@@ -503,7 +503,7 @@ async def get_calendar_events_by_end_time(user_id: str, current_time: datetime):
     
     query = {
         "user_id": user_id,
-        "end.dateTime": {"$gt": current_time_str}
+        "end.dateTime": {"$lte": current_time_str}
     }
     
     cursor = calendar_events_collection.find(query).sort("end.dateTime", DESCENDING)

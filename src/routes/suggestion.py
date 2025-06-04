@@ -31,9 +31,11 @@ async def get_suggestions(
 @router.get("/meeting-summary/")
 async def get_meeting_summary(
     meetingId: str = Query(...),
-    userId: str = Query(None),
-    # token_data: dict = Depends(verify_token)
+    eventId: str = Query(...),
+    # userId: str = Query(None),
+    token_data: dict = Depends(verify_token)
 ):
+    userId = token_data["user_id"]
     document = await get_summary_and_suggestion(meetingId, userId)
     if not document:
         raise HTTPException(status_code=404, detail="Summary not found")
@@ -46,5 +48,5 @@ async def get_meeting_summary(
         "suggestion": document["suggestion"],
         "createdAt": document["createdAt"],
         "updatedAt": document["updatedAt"],
-        "result": result["result"]
+        "transcript": result["results"]
     }

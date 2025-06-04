@@ -268,7 +268,9 @@ async def finalize_session(
         # sample_file_data = download_file_from_s3(s3_sample_key)
         # with open(sample_path, "wb") as sf:
         #     sf.write(sample_file_data)
-        sample_path = "../host2.wav"
+        # sample_path = "../host2.wav"
+        BASE_DIR = os.path.dirname(__file__)
+        sample_path = os.path.join(BASE_DIR, "../host2.wav")
 
         # Load reference embedding from local sample file
         ref_embedding = load_reference_embedding(sample_path)
