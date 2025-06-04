@@ -11,7 +11,8 @@ from src.services.mongo_service import (
     delete_calendar_event,
     get_user_details,
     get_calendar_events_by_status,
-    get_calendar_events_by_end_time
+    get_calendar_events_by_end_time,
+    calendar_events_collection
 )
 from src.routes.auth import verify_token
 from pydantic import BaseModel
@@ -137,7 +138,7 @@ async def sync_events_from_body(
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        synced_events = []
+        # Process and save/update events from the request body
         for event_data in events:
             # Check if event exists by id
             existing_event = await get_calendar_event_by_id(event_data["id"], user_id=token_data["user_id"]) if "id" in event_data else None
@@ -155,11 +156,6 @@ async def sync_events_from_body(
                 )
                 if not updated:
                     raise HTTPException(status_code=500, detail=f"Failed to update event {event_data['id']}")
-                
-                updated_event = await get_calendar_event_by_id(event_data["id"], user_id=token_data["user_id"])
-                # Add MongoDB _id to the response
-                updated_event["eventId"] = str(updated_event["_id"])
-                synced_events.append(updated_event)
             else:
                 # Create new event
                 event_dict = event_data.copy()
@@ -171,12 +167,31 @@ async def sync_events_from_body(
                     "autoJoin": True
                 })
                 
-                eventId = await save_calendar_event(event_dict)
-                # Add MongoDB _id to the response
-                event_dict["eventId"] = str(eventId)
-                synced_events.append(event_dict)
+                await save_calendar_event(event_dict)
+
+        # Get current time in UTC
+        current_time = datetime.now(timezone.utc)
         
-        return synced_events
+        # Query to get all events that:
+        # 1. Belong to the current user
+        # 2. Have end time greater than or equal to current time
+        # 3. Have status "confirmed"
+        query = {
+            "user_id": token_data["user_id"],
+            "end.dateTime": {"$gte": current_time.isoformat()},
+            "status": "confirmed"
+        }
+        
+        # Get all matching events from calendar_events collection
+        cursor = calendar_events_collection.find(query).sort("start.dateTime", 1)
+        all_events = await cursor.to_list(length=None)
+        
+        # Add MongoDB _id to each event in the response
+        for event in all_events:
+            event["eventId"] = str(event["_id"])
+        
+        return all_events
+
     except HTTPException as he:
         raise he
     except Exception as e:
