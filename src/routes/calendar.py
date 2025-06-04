@@ -164,7 +164,8 @@ async def sync_events_from_body(
                     "updated": datetime.utcnow().isoformat() + 'Z',
                     "user_id": token_data["user_id"],
                     "isMeetingDetailsUploaded": False,
-                    "autoJoin": True
+                    "autoJoin": True,
+                    "mode": "Online"
                 })
                 
                 await save_calendar_event(event_dict)

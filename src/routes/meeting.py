@@ -4,7 +4,7 @@ import uuid, tempfile, os
 import asyncio
 import json
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from pydantic import BaseModel
 
@@ -14,7 +14,7 @@ from src.services.s3_service import upload_file_to_s3, download_file_from_s3
 from src.services.mongo_service import (
     get_calendar_event_by_id_only, get_salesperson_sample, save_chunk_metadata, get_chunk_list, save_final_audio, 
     save_suggestion, update_final_summary_and_suggestion, get_calendar_event_by_id,
-    update_calendar_event
+    update_calendar_event, save_calendar_event
 )
 from src.services.audio_merge_service import merge_audio_chunks
 from src.services.whisper_service import transcribe_audio
@@ -229,17 +229,14 @@ async def upload_audio_chunk(
 
 @router.post("/finalize-session")
 async def finalize_session(
-    meetingId: str = Body(...), 
-    # userId: str = Body(...),
+    file: UploadFile = File(...),
+    meetingId: str = Form(...),
+    eventId: str = Form(...),
     token_data: dict = Depends(verify_token)
 ):
     userId = token_data["user_id"]
-    if not meetingId:
-        raise HTTPException(status_code=400, detail="Missing meetingId")
-
-    chunk_keys = await get_chunk_list(meetingId)
-    if not chunk_keys:
-        raise HTTPException(status_code=404, detail="No chunks found")
+    if not meetingId or not eventId:
+        raise HTTPException(status_code=400, detail="Missing meetingId or eventId")
 
     temp_dir = tempfile.mkdtemp()
     local_files = []
@@ -247,29 +244,19 @@ async def finalize_session(
     sample_path = None
 
     try:
-        # Download chunk files from S3 and save locally
-        for item in chunk_keys:
-            key = item["chunk_name"]
-            local_filename = os.path.basename(key)
-            local_path = os.path.join(temp_dir, local_filename)
+        # Read and save the final audio file
+        audio_bytes = await file.read()
+        final_path = os.path.join(temp_dir, f"{meetingId}_final.wav")
+        with open(final_path, "wb") as f:
+            f.write(audio_bytes)
 
-            file_data = download_file_from_s3(key)
-            with open(local_path, "wb") as f:
-                f.write(file_data)
-
-            local_files.append(local_path)
-
-        # Merge chunks
-        final_path = os.path.join(temp_dir, f"{meetingId}_merged.wav")
-        merge_audio_chunks(local_files, final_path)
-
-         # If upload_file_to_s3 is async, await it
-        with open(final_path, "rb") as f:
-            s3_url = upload_file_to_s3(f"final_recording/{meetingId}_merged.wav", f.read())
+        # Upload final audio to S3
+        s3_key = f"final_recording/{meetingId}/{eventId}/final.wav"
+        s3_url = upload_file_to_s3(s3_key, audio_bytes)
 
         # Fetch salesperson sample from DB
         sample_url = await get_salesperson_sample(userId)
-        s3_sample_key = extract_filename_from_s3_url(sample_url["s3_url"])  # gets `audio_salesperson_samples/...`
+        s3_sample_key = extract_filename_from_s3_url(sample_url["s3_url"])
 
         # Download and save salesperson sample locally
         sample_path = os.path.join(temp_dir, os.path.basename(s3_sample_key))
@@ -283,25 +270,33 @@ async def finalize_session(
         # Run diarization and process
         diarization = run_diarization(final_path)
         results = process_segments(diarization, final_path, ref_embedding)
-         # If upload_file_to_s3 is async, await it
-        with open(final_path, "rb") as f:
-         s3_url = upload_file_to_s3(f"final_recording/{meetingId}_merged.wav", f.read())
 
-         transcript = ""
-         speakers = []
+        # Save the final audio metadata
+        doc_id = await save_final_audio(meetingId, s3_url, results, userId)
 
-         doc_id = await save_final_audio(meetingId, s3_url, results, userId)
+        # Update calendar event status
+        calendar_event = await get_calendar_event_by_id_only(eventId)
+        if calendar_event:
+            await update_calendar_event(calendar_event["_id"], {
+                "meetingId": meetingId,
+                "status": "transcription",
+                "message": "Meeting recording completed",
+            })
 
-           # ✅ Run summarization in background
-         asyncio.create_task(handle_finalize_post_processing(meetingId, userId, results))
+        # Run post-processing in background
+        asyncio.create_task(handle_finalize_post_processing(meetingId, userId, results, eventId))
 
-         return {
+        return {
             "id": str(doc_id),
             "transcript": "",
-            "results":results
-         }
+            "results": results,
+            "s3_url": s3_url
+        }
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing final session: {str(e)}")
     finally:
+        # Clean up temporary files
         for file in local_files:
             if os.path.exists(file):
                 os.remove(file)
@@ -309,9 +304,11 @@ async def finalize_session(
             os.remove(final_path)
         if sample_path and os.path.exists(sample_path):
             os.remove(sample_path)
+        if os.path.exists(temp_dir):
+            os.rmdir(temp_dir)
 
 
-async def handle_finalize_post_processing(meetingId: str, userId: str, transcript: str):
+async def handle_finalize_post_processing(meetingId: str, userId: str, transcript: str, eventId: str):
     try:
         # Get meeting metadata
         meeting = await get_meeting_by_id(meetingId)
@@ -354,6 +351,10 @@ async def handle_finalize_post_processing(meetingId: str, userId: str, transcrip
         # --- Step 5: Save to DB ---
         await update_final_summary_and_suggestion(meetingId, userId, summary, suggestion)
 
+        await update_calendar_event(eventId, {
+            "status": "completed",
+        })
+
     except Exception as e:
         print(f"❌ Error in finalize post-processing: {e}")
 
@@ -366,9 +367,53 @@ async def create_meeting_api(
     userId = token_data["user_id"]
     meeting_data = meeting.dict()
     meeting_data["userId"] = userId
+    
+    # If eventId is not provided, create a new calendar event
+    if not meeting_data.get("eventId"):
+        from src.services.mongo_service import save_calendar_event
+        from datetime import datetime, timedelta
+        
+        # Create a new calendar event
+        event_data = {
+            "created": datetime.utcnow().isoformat() + 'Z',
+            "creator": {
+                "email": token_data["email"],
+                "self": True
+            },
+            "end": {
+                "dateTime": (datetime.utcnow() + timedelta(hours=1)).isoformat() + 'Z',
+                "timeZone": "UTC"
+            },
+            "eventType": "default",
+            "kind": "calendar#event",
+            "organizer": {
+                "email": token_data["email"],
+                "self": True
+            },
+            "reminders": {
+                "useDefault": True
+            },
+            "start": {
+                "dateTime": datetime.utcnow().isoformat() + 'Z',
+                "timeZone": "UTC"
+            },
+            "status": "confirmed",
+            "summary": meeting_data["title"],
+            "updated": datetime.utcnow().isoformat() + 'Z',
+            "user_id": userId,
+            "isMeetingDetailsUploaded": True,
+            "autoJoin": True,
+            "mode": "Offline"
+        }
+        
+        # Save the new calendar event
+        event_id = await save_calendar_event(event_data)
+        meeting_data["eventId"] = str(event_id)
+    
+    # Create the meeting
     meeting_id = await create_meeting(meeting_data)
     
-    # If eventId is present, update the calendar event
+    # Update the calendar event with meeting details
     if meeting_data.get("eventId"):
         from src.services.mongo_service import update_meeting_details_uploaded
         await update_meeting_details_uploaded(meeting_data["eventId"], str(meeting_id))
@@ -529,7 +574,7 @@ async def process_finalize_session(
         await save_final_audio(meetingId, s3_url, results, userId)
         
         # Run post-processing in background
-        asyncio.create_task(handle_finalize_post_processing(meetingId, userId, results))
+        asyncio.create_task(handle_finalize_post_processing(meetingId, userId, results, eventId))
         
         # Update calendar event if needed
         calendar_event = await get_calendar_event_by_id_only(eventId)
