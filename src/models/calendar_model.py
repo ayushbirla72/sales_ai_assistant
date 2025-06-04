@@ -50,7 +50,7 @@ class CalendarEvent(BaseModel):
     conferenceData: Optional[ConferenceData] = None
     created: datetime
     creator: Creator
-    etag: str
+    etag: Optional[str] = None
     eventType: Optional[str] = "default"
     hangoutLink: Optional[str] = None
     htmlLink: Optional[str] = None
@@ -66,7 +66,7 @@ class CalendarEvent(BaseModel):
     autoJoin: Optional[bool] = True
     mode: Optional[str] = "Online"
 
-    
+
 class CalendarEventCreate(BaseModel):
     summary: str
     description: Optional[str] = None

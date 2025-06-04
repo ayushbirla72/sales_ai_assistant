@@ -390,6 +390,12 @@ async def create_meeting_api(
                 "email": token_data["email"],
                 "self": True
             },
+            "attendees": [
+                {
+                    "email": token_data["email"],
+                    "self": True
+                }
+            ],
             "reminders": {
                 "useDefault": True
             },
