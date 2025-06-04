@@ -98,7 +98,8 @@ async def upload_chunk(
     s3_url = "https://s3.amazonaws.com/"
 
     # Transcribe the uploaded audio chunk
-    transcript = transcribe_audio_bytes(content)
+    # transcript = transcribe_audio_bytes(content)
+    transcript = "test"
 
     # Save the chunk metadata
     await save_chunk_metadata(meetingId, chunk_name, userId, transcript, s3_url, eventId, container_id)
@@ -144,7 +145,9 @@ async def upload_chunk_google_meet(
         s3_url = "https://s3.amazonaws.com/"
         print(f"s3_url {s3_url}")
         # Transcribe the uploaded audio chunk
-        transcript = transcribe_audio_bytes(content)
+        # transcript = transcribe_audio_bytes(content)
+        transcript = "test"
+
         print(f"transcript {transcript}")
         # Save the chunk metadata
         await save_chunk_metadata(meeting_id, chunk_name, userId, transcript, s3_url, eventId, container_id)
