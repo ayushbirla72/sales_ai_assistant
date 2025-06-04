@@ -40,7 +40,7 @@ class Reminders(BaseModel):
 
 class CalendarEvent(BaseModel):
     eventId: Optional[str] = None
-    id: str
+    id: Optional[str] = None
     summary: str
     description: Optional[str] = None
     start: DateTime
@@ -64,7 +64,9 @@ class CalendarEvent(BaseModel):
     user_id: Optional[str] = None
     isMeetingDetailsUploaded: Optional[bool] = False
     autoJoin: Optional[bool] = True
+    mode: Optional[str] = "Online"
 
+    
 class CalendarEventCreate(BaseModel):
     summary: str
     description: Optional[str] = None
