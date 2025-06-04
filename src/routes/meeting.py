@@ -94,7 +94,8 @@ async def upload_chunk(
     # Upload chunk to S3
     chunk_name = f"audio_recording/{meetingId}_{uuid.uuid4()}_{file.filename}"
     content = await file.read()
-    s3_url = upload_file_to_s3(chunk_name, content)
+    # s3_url = upload_file_to_s3(chunk_name, content)
+    s3_url = "https://s3.amazonaws.com/"
 
     # Transcribe the uploaded audio chunk
     transcript = transcribe_audio_bytes(content)
