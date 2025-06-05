@@ -131,8 +131,8 @@ async def sync_events_from_body(
     try:
         body = await request.json()
         events = body.get("events", [])
-        if not events:
-            raise HTTPException(status_code=400, detail="No events provided in request body")
+        # if not events:
+        #     raise HTTPException(status_code=400, detail="No events provided in request body")
 
         user = await get_user_details({"email": token_data["email"]})
         if not user:
