@@ -28,11 +28,9 @@ async def get_suggestions(
     return suggestions
 
 
-@router.get("/meeting-summary/")
+@router.get("/meeting-summary/{meetingId}", response_model=dict)
 async def get_meeting_summary(
-    meetingId: str = Query(...),
-    eventId: str = Query(...),
-    # userId: str = Query(None),
+    meetingId: str,
     token_data: dict = Depends(verify_token)
 ):
     userId = token_data["user_id"]
