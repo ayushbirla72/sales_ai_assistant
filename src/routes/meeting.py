@@ -250,7 +250,12 @@ async def finalize_session(
     try:
         # Read and save the final audio file
         audio_bytes = await file.read()
-        final_path = os.path.join(temp_dir, f"{meetingId}_final.wav")
+
+        BASE_DIR = os.path.dirname(__file__)
+        local_audio_dir = os.path.join(BASE_DIR, "../../recordings", meetingId)
+        os.makedirs(local_audio_dir, exist_ok=True)  # Ensure directory exists
+    
+        final_path = os.path.join(local_audio_dir, f"{eventId}_final.wav")
         with open(final_path, "wb") as f:
             f.write(audio_bytes)
 
