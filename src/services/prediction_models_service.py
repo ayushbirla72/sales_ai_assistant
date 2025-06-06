@@ -6,7 +6,7 @@ MODEL_PATH = os.path.abspath("src/prediction_models/mistral-7b-instruct-v0.1.Q4_
 # Load the model
 llm = Llama(
     model_path=MODEL_PATH,
-    n_ctx=2048,  # context size
+    n_ctx=4096,  # context size
     n_threads=8,  # adjust for your CPU
 )
 
