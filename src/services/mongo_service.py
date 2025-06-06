@@ -269,7 +269,7 @@ def serialize_suggestion(suggestion: dict) -> dict:
 
 async def get_suggestions_by_user_and_session(userId: str, meetingId: str):
     query = {"userId": userId, "meetingId": meetingId}
-    cursor = suggestion_collection.find(query)
+    cursor = suggestion_collection.find(query).sort("updatedAt", -1)  # Sort descending
     results = await cursor.to_list(length=None)
     return [serialize_suggestion(s) for s in results]
 
@@ -508,3 +508,21 @@ async def get_calendar_events_by_end_time(user_id: str, current_time: datetime):
     
     cursor = calendar_events_collection.find(query).sort("end.dateTime", DESCENDING)
     return await cursor.to_list(length=None)
+
+
+
+
+async def get_real_time_transcript(meetingId: str, userId: str, eventId: str) -> Optional[list]:
+    try:
+        doc = await chunks_col.find_one({"meetingId": meetingId})
+        if not doc or "chunks" not in doc:
+            return []
+
+        # Sort the chunks by 'createdAt' ascending
+        sorted_chunks = sorted(doc["chunks"], key=lambda chunk: chunk.get("createdAt"))
+
+        return sorted_chunks
+
+    except Exception as e:
+        print(f"Error retrieving real-time transcript: {str(e)}")
+        return None
