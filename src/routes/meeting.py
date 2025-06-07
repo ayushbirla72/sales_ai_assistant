@@ -231,8 +231,8 @@ async def upload_audio_chunk(
         "id": str(doc_id)
     }
 
-@router.post("/finalize-session")
-async def finalize_session(
+@router.post("/finalize-offline-session")
+async def finalize_offline_session(
     file: UploadFile = File(...),
     meetingId: str = Form(...),
     eventId: str = Form(...),
@@ -293,6 +293,7 @@ async def finalize_session(
             await update_calendar_event(calendar_event["_id"], {
                 "meetingId": meetingId,
                 "status": "transcription",
+                "end.dateTime": datetime.utcnow().isoformat() + 'Z',
                 "message": "Meeting recording completed",
             })
 
@@ -505,8 +506,8 @@ async def some_endpoint(token_data: dict = Depends(verify_token)):
     user_id = token_data["user_id"]
     # ... rest of your code
 
-@router.post("/finalize-session-with-audio")
-async def finalize_session_with_audio(
+@router.post("/finalize-online-session")
+async def finalize_online_session(
     file: UploadFile = File(...),
     meetingId: str = Form(...),
     eventId: str = Form(...),
