@@ -350,6 +350,8 @@ async def handle_finalize_post_processing(meetingId: str, userId: str, transcrip
             # f"Product Details: {product_details}"
         )
 
+        base_context = f"Meeting Description: {description}\nProduct Details: {product_details}\nTranscript:\n{formatted_transcript}"
+
         suggestion_instruction = (
             f"Suggest improvements based on the following meeting.\n"
             # f"Meeting Description: {description}\n"
@@ -358,12 +360,27 @@ async def handle_finalize_post_processing(meetingId: str, userId: str, transcrip
 
         # --- Step 4: Call LLM ---
         summary = run_instruction(summary_instruction, f"Transcript:\n{formatted_transcript}")
-        suggestion = run_instruction(suggestion_instruction, f"Transcript:\n{formatted_transcript}")
+        # suggestion = run_instruction(suggestion_instruction, f"Transcript:\n{formatted_transcript}")
+        instructions = {
+            "Meeting Details": "Extract the meeting date (if available), time, participants, organizer, and duration.",
+            "Agenda": "List the agenda items discussed or implied during the meeting.",
+            "Key Discussion Points": "List the key discussion points from the meeting.",
+            "Action Items / To-Dos": "List all action items with responsible persons and due dates (if mentioned).",
+            "Decisions & Agreements": "List important decisions and agreements made during the meeting.",
+            "Follow-up Items": "List follow-up questions or tasks that need to be addressed in the next meeting.",
+            "Meeting Summary": "Summarize the entire meeting in 2-3 sentences.",
+            "Sentiment / Feedback": "Analyze the tone and sentiment of each speaker and the overall meeting."
+        }
 
-        print(f"📄 Summary:\n{summary}\n\n💡 Suggestions:\n{suggestion}")
+        results = {}
+        for section, instruction in instructions.items():
+            results[section] = run_instruction(instruction, base_context)
+
+
+        # print(f"📄 Summary:\n{summary}\n\n💡 Suggestions:\n{suggestion}")
 
         # --- Step 5: Save to DB ---
-        await update_final_summary_and_suggestion(meetingId, userId, summary, suggestion)
+        await update_final_summary_and_suggestion(meetingId, userId, summary, results)
 
         await update_calendar_event(eventId, {
             "status": "completed",

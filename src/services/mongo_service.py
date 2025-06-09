@@ -275,7 +275,7 @@ async def get_suggestions_by_user_and_session(userId: str, meetingId: str):
 
 
 
-async def update_final_summary_and_suggestion(meetingId: str, userId: str, summary: str, suggestion:str):
+async def update_final_summary_and_suggestion(meetingId: str, userId: str, summary: str, suggestion:list):
     now = datetime.utcnow()
     doc = {
         "userId": userId,
