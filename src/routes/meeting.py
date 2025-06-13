@@ -1,4 +1,5 @@
 from typing import List, Optional
+from common import extract_calendly_events
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body, Depends
 import uuid, tempfile, os
 import asyncio
@@ -12,7 +13,7 @@ from src.services.prediction_models_service import run_instruction
 from src.services.speaker_identification import load_reference_embedding, process_segments, run_diarization
 from src.services.s3_service import upload_file_to_s3, download_file_from_s3
 from src.services.mongo_service import (
-    get_calendar_event_by_id_only, get_salesperson_sample, save_chunk_metadata, get_chunk_list, save_final_audio, 
+    calendar_events_tasks_collection_save, get_calendar_event_by_id_only, get_salesperson_sample, save_chunk_metadata, get_chunk_list, save_final_audio, 
     save_suggestion, update_final_summary_and_suggestion, get_calendar_event_by_id,
     update_calendar_event, save_calendar_event
 )
@@ -87,7 +88,7 @@ async def upload_chunk(
 ):
     userId = token_data["user_id"]
     # eventId = '665d63636363636363636363'
-    container_id = '1234567890'
+    container_id = '1234'
     if not meetingId or not file.filename:
         raise HTTPException(status_code=400, detail="Missing meetingId or file")
 
@@ -181,9 +182,21 @@ async def handle_post_processing(meetingId: str, userId: str):
         description = meeting.get("description", "")
         product_details = meeting.get("product_details", "")
 
-        # Run LLM
-        instruction = f"Suggest improvements for this meeting segment. Meeting Description: {description}. Product Details: {product_details}."
-        # suggestions = run_instruction(instruction, f"Transcript:\n{full_transcript}")
+        # Prompt to detect questions and respond if directed to sales person
+        instruction = (
+            f"The following is a transcript of a meeting about {product_details}.\n"
+            f"Meeting Description: {description}\n"
+            f"Transcript:\n{full_transcript}\n\n"
+            f"Step 1: Identify any questions asked during the meeting that are directed to a sales person.\n"
+            f"Step 2: For each such question, provide a concise and professional answer from the perspective of a knowledgeable sales person.\n"
+            f"Format the response as a list of Q&A pairs like:\n"
+            f"Q: [the question]\nA: [the sales person's answer]\n"
+        )
+
+        # Run LLM model to get answers
+        response = await run_instruction(instruction, full_transcript)  # assuming this is an async call
+        print(f"Sales Q&A response: {response}")
+        
         suggestions = "test"
         print(f"suggestion result is ............. {suggestions}")
         # Save suggestions
@@ -374,6 +387,14 @@ async def handle_finalize_post_processing(meetingId: str, userId: str, transcrip
 
         results = {}
         for section, instruction in instructions.items():
+
+          if section == "Action Items / To-Dos":
+           # Simulate extracted markdown table text (you can replace this with actual content from base_context)
+           table_text = run_instruction(instruction, base_context)
+           action_items = extract_calendly_events(table_text)
+           await calendar_events_tasks_collection_save(meetingId, eventId, userId, action_items)
+           results[section] = table_text
+          else:
             results[section] = run_instruction(instruction, base_context)
 
 

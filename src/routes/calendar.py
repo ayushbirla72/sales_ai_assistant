@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from src.models.calendar_model import CalendarEvent, CalendarEventCreate, CalendarEventResponse
 from src.services.calendar_service import calendar_service
 from src.services.mongo_service import (
+    get_calendar_events_tasks,
     save_calendar_event,
     get_calendar_events,
     get_calendar_event_by_id,
@@ -242,3 +243,32 @@ async def get_completed_meetings(token_data: dict = Depends(verify_token)):
         return events
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) 
+    
+
+
+@router.post("/meeting-tasks", response_model=Dict[str, Any])
+async def get_meeting_task(
+    request: Request,
+    token_data: dict = Depends(verify_token)
+):
+    try:
+        body = await request.json()
+        meetingId = body.get("meetingId")
+        eventId = body.get("eventId")
+        if not meetingId and not eventId:
+            raise HTTPException(status_code=400, detail="Either meetingId or eventId is required")
+        
+        tasks = await get_calendar_events_tasks(
+            user_id=token_data["user_id"],
+            meetingId=meetingId,
+            eventId=eventId
+        )
+        if not tasks:
+            raise HTTPException(status_code=404, detail="No tasks found for the given meeting/event")
+        return tasks
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)
+        
+)

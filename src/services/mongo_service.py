@@ -18,6 +18,7 @@ prediction_collection = db["predictions"]
 suggestion_collection = db["suggestions"]
 meeting_summry_collection = db["meetingSummrys"]
 calendar_events_collection = db["calendarEvents"]
+calendar_events_tasks_collection = db["calendarEventsTasks"]
 
 # Save chunk metadata
 async def save_chunk_metadata(meetingId: str, chunk_name: str, userId: str, transcript: str, s3_url: str , eventId: str, container_id: str):
@@ -525,4 +526,70 @@ async def get_real_time_transcript(meetingId: str, userId: str, eventId: str) ->
 
     except Exception as e:
         print(f"Error retrieving real-time transcript: {str(e)}")
+        return None
+
+
+async def calendar_events_tasks_collection_save(meetingId, eventId, userId, event_data: dict):
+    """Save a calendar event task to the database."""
+    now = datetime.utcnow()
+    doc = {
+        **event_data,
+        "user_id": userId,  # Ensure user_id is included
+        "meetingId": meetingId,  # Include meetingId for association
+        "eventId": eventId,  # Include eventId for association
+        "isCreated": False,  # Default value for isCreated
+        "createdAt": now,
+        "updatedAt": now
+    }
+    result = await calendar_events_tasks_collection.insert_one(doc)
+    return result.inserted_id
+async def get_calendar_events_tasks(user_id: str, start_date: datetime = None, end_date: datetime = None):
+    """Get calendar event tasks for a user within a date range."""
+    query = {"user_id": user_id}
+    
+    if start_date and end_date:
+        query["start_time"] = {
+            "$gte": start_date,
+            "$lte": end_date
+        }
+    
+    cursor = calendar_events_tasks_collection.find(query).sort("start_time", 1)
+    return await cursor.to_list(length=None)
+async def get_calendar_event_task_by_id(eventId: str, user_id: str):
+    """Get a specific calendar event task by eventId and user_id."""
+    try:
+        doc = await calendar_events_tasks_collection.find_one({
+            "eventId": eventId,
+            "user_id": user_id
+        })
+        return doc
+    except:
+        return None
+async def update_calendar_event_task(eventId: str, update_data: dict):
+    """Update a calendar event task."""
+    try:
+        result = await calendar_events_tasks_collection.update_one(
+            {"_id": ObjectId(eventId)},
+            {"$set": {**update_data, "updatedAt": datetime.utcnow()}}
+        )
+        return result.modified_count > 0
+    except Exception as e:
+        print(f"Error updating calendar event task: {str(e)}")
+        return False
+async def delete_calendar_event_task(eventId: str):
+    """Delete a calendar event task."""
+    try:
+        result = await calendar_events_tasks_collection.delete_one({"_id": ObjectId(eventId)})
+        return result.deleted_count > 0
+    except Exception as e:
+        print(f"Error deleting calendar event task: {str(e)}")
+        return False
+async def get_calendar_event_task_by_id_only(eventId: str):
+    """Get a specific calendar event task by eventId."""
+    try:
+        doc = await calendar_events_tasks_collection.find_one({
+            "_id": ObjectId(eventId)
+        })
+        return doc
+    except:
         return None
