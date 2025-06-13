@@ -561,9 +561,9 @@ async def get_calendar_events_tasks(user_id: str, meetingId: str, eventId: str):
     :return: List of tasks sorted by date.
     """
     query = {
-        "user_id": user_id,
-        "meetingId": meetingId,
-        "eventId": eventId
+        # "user_id": user_id,
+        # "meetingId": meetingId,
+        # "eventId": eventId
     }
 
     cursor = calendar_events_tasks_collection.find(query).sort("date", 1)
