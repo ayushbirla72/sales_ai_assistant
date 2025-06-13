@@ -1,6 +1,6 @@
 from typing import List, Optional
 from src.common import extract_calendly_events
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body, Depends
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body, Depends,  Request
 import uuid, tempfile, os
 import asyncio
 import json
@@ -716,24 +716,28 @@ async def update_meeting_status(
 
 
 
-    # Test endpoint
 
 @router.post("/test")
 async def test_endpoint(
+    request: Request,
     token_data: dict = Depends(verify_token),
-    request_body: dict = Body(..., embed=True)
 ):
-    meetingId = request_body.get("meetingId")
-    eventId = request_body.get("eventId")
+    body: Dict = await request.json()
+    
+    meetingId = body.get("meetingId")
+    eventId = body.get("eventId")
+    table_text = body.get("table_text", "")
     userId = token_data.get("user_id")
+
     if not meetingId or not eventId:
         raise HTTPException(status_code=400, detail="Missing meetingId or eventId")
-    
-    table_text = request_body.get("table_text", "")
+
     action_items = extract_calendly_events(table_text)
-    await calendar_events_tasks_collection_save(meetingId, eventId, userId, action_items)  
-    
+
+    await calendar_events_tasks_collection_save(meetingId, eventId, userId, action_items)
+
     return {
         "message": "Action items extracted and saved successfully",
         "action_items": action_items
     }
+
