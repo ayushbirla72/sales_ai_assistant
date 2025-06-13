@@ -1,5 +1,5 @@
 from typing import List, Optional
-from common import extract_calendly_events
+from src.common import extract_calendly_events
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Body, Depends
 import uuid, tempfile, os
 import asyncio
