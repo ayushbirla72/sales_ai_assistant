@@ -562,8 +562,8 @@ async def get_calendar_events_tasks(user_id: str, meetingId: str, eventId: str):
     """
     query = {
         "user_id": user_id,
-        "meeting_id": meetingId,
-        "event_id": eventId
+        "meetingId": meetingId,
+        "eventId": eventId
     }
 
     cursor = calendar_events_tasks_collection.find(query).sort("date", 1)
