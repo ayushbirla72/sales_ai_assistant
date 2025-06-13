@@ -529,20 +529,27 @@ async def get_real_time_transcript(meetingId: str, userId: str, eventId: str) ->
         return None
 
 
-async def calendar_events_tasks_collection_save(meetingId, eventId, userId, event_data: dict):
-    """Save a calendar event task to the database."""
+async def calendar_events_tasks_collection_save(meetingId, eventId, userId, event_data_list: list):
+    """Save multiple calendar event tasks to the database."""
     now = datetime.utcnow()
-    doc = {
-        **event_data,
-        "user_id": userId,  # Ensure user_id is included
-        "meetingId": meetingId,  # Include meetingId for association
-        "eventId": eventId,  # Include eventId for association
-        "isCreated": False,  # Default value for isCreated
-        "createdAt": now,
-        "updatedAt": now
-    }
-    result = await calendar_events_tasks_collection.insert_one(doc)
-    return result.inserted_id
+    documents = []
+
+    for event_data in event_data_list:
+        doc = {
+            **event_data,
+            "user_id": userId,
+            "meetingId": meetingId,
+            "eventId": eventId,
+            "isCreated": False,
+            "createdAt": now,
+            "updatedAt": now
+        }
+        documents.append(doc)
+
+    if documents:
+        result = await calendar_events_tasks_collection.insert_many(documents)
+        return result.inserted_ids
+
 
 async def get_calendar_events_tasks(user_id: str, meetingId: str, eventId: str):
     """
