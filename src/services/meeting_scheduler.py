@@ -53,16 +53,25 @@ async def check_and_join_meetings():
                     if not all([meeting_id, hangout_link, user_id]):
                         logger.warning(f"Missing required fields for meeting: {event['summary']}")
                         continue
+                    # Parse start and end times from the event
+                    start_str = event["start"]["dateTime"]
+                    end_str = event["end"]["dateTime"]
                     
+                    start_time = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
+                    end_time = datetime.fromisoformat(end_str.replace("Z", "+00:00"))
+                    
+                    # Calculate duration in minutes
+                    duration = int((end_time - start_time).total_seconds() // 60)
+
                     # Join the meeting using join_external_meeting
                     join_result = await join_external_meeting(
                          hangout_link,
                         ADMIN_GMAIL_EMAIL, 
                         ADMIN_GMAIL_PASSWORD, 
-                        duration_in_minutes=10, 
+                        duration_in_minutes=duration, 
                         userId=user_id,             
                         meetingId=meeting_id,
-                        max_wait_time_in_minutes=2,
+                        max_wait_time_in_minutes=3,
                         eventId=event["_id"] 
                                                               )
                     
