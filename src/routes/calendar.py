@@ -245,8 +245,7 @@ async def get_completed_meetings(token_data: dict = Depends(verify_token)):
         raise HTTPException(status_code=500, detail=str(e)) 
     
 
-
-@router.post("/meeting-tasks", response_model=Dict[str, Any])
+@router.post("/meeting-tasks")
 async def get_meeting_task(
     request: Request,
     token_data: dict = Depends(verify_token)
@@ -255,20 +254,25 @@ async def get_meeting_task(
         body = await request.json()
         meetingId = body.get("meetingId")
         eventId = body.get("eventId")
+
         if not meetingId and not eventId:
             raise HTTPException(status_code=400, detail="Either meetingId or eventId is required")
-        
+
         tasks = await get_calendar_events_tasks(
             user_id=token_data["user_id"],
             meetingId=meetingId,
             eventId=eventId
         )
+
         if not tasks:
             raise HTTPException(status_code=404, detail="No tasks found for the given meeting/event")
+        
+        for task in tasks:
+            task["_id"] = str(task["_id"])
+
         return tasks
+
     except HTTPException as he:
         raise he
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)
-        
-)
+        raise HTTPException(status_code=500, detail=str(e))
