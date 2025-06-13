@@ -543,18 +543,26 @@ async def calendar_events_tasks_collection_save(meetingId, eventId, userId, even
     }
     result = await calendar_events_tasks_collection.insert_one(doc)
     return result.inserted_id
-async def get_calendar_events_tasks(user_id: str, start_date: datetime = None, end_date: datetime = None):
-    """Get calendar event tasks for a user within a date range."""
-    query = {"user_id": user_id}
+
+async def get_calendar_events_tasks(user_id: str, meetingId: str, eventId: str):
+    """
+    Get calendar event tasks for a specific user, meeting, and event.
     
-    if start_date and end_date:
-        query["start_time"] = {
-            "$gte": start_date,
-            "$lte": end_date
-        }
-    
-    cursor = calendar_events_tasks_collection.find(query).sort("start_time", 1)
+    :param user_id: ID of the user.
+    :param meetingId: ID of the meeting.
+    :param eventId: ID of the calendar event.
+    :return: List of tasks sorted by date.
+    """
+    query = {
+        "user_id": user_id,
+        "meeting_id": meetingId,
+        "event_id": eventId
+    }
+
+    cursor = calendar_events_tasks_collection.find(query).sort("date", 1)
     return await cursor.to_list(length=None)
+
+
 async def get_calendar_event_task_by_id(eventId: str, user_id: str):
     """Get a specific calendar event task by eventId and user_id."""
     try:
